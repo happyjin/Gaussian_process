@@ -15,7 +15,7 @@ n = 50          # number of test points
 s = 0.0005      # noise variance and zero mean for noise
 num_fun = 10    # number of prior function
 kernel_parameter = 1
-kernel_stand_deiv = 1
+kernel_stand_deiv = 1 # standard deviation for kernel
 
 
 # Sample N input points of noisy version of the function evaluated at these points
