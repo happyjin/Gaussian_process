@@ -10,10 +10,10 @@ def RBF_kernel(a,b,kernel_parameter):
     dis_mean = 1
     return dis_mean * np.exp(-.5 * (1 / kernel_parameter) * sqdist)
 
-N = 5     # number of training points
-n = 50     # number of test points
-s = 0.0005  # noise variance and zero mean for noise
-num_fun = 10 # number of prior function
+N = 5           # number of training points
+n = 50          # number of test points
+s = 0.0005      # noise variance and zero mean for noise
+num_fun = 10    # number of prior function
 kernel_parameter = 1
 kernel_stand_deiv = 1
 
