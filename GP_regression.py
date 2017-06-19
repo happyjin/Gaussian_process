@@ -17,7 +17,6 @@ num_fun = 10    # number of prior function
 kernel_parameter = 1
 kernel_stand_deiv = 1 # standard deviation for kernel
 
-
 # Sample N input points of noisy version of the function evaluated at these points
 t = np.linspace(-5, 5, N)
 X_train = np.random.uniform(-5, 5, size=(N,1))
