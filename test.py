@@ -3,5 +3,6 @@ ncoord = np.matrix('3225   318;2387    989;1228    2335;57      1569;2288  8138;
 ncoord = np.array(ncoord)
 D = np.sqrt(((ncoord[:, :, None] - ncoord[:, :, None].T) ** 2).sum(1))
 
-y = np.asarray([1,2,3,4,5,6,7,8,9]).reshape(3,3)
-print np.sqrt(y)
+y = np.asarray([1,2,3,4,5,6,7,8,9]).reshape(-1,1)
+print y.shape
+print np.sum(y**2)

@@ -44,13 +44,32 @@ def sec_deriv_log_likelihood(z):
 
 
 # Newton method function
-def newton_method(K, y, z):
+def newton_method(K, y, z, num_funs):
     num_ele = y.size
     first_deri = np.zeros((num_ele, num_ele))
     W = np.zeros((num_ele, num_ele))
+    f = np.zeros((num_ele, num_funs)) # initialize function
+    tolerance = 0.0000001
 
-    np.fill_diagonal(first_deri, deriv_log_likelihood(y, z).flatten())
-    np.fill_diagonal(W, sec_deriv_log_likelihood(z))
+
+    for i in range(100):
+        first_deri = deriv_log_likelihood(y, z)
+        np.fill_diagonal(W, -sec_deriv_log_likelihood(z))
+        L = np.linalg.cholesky(np.eye(num_ele) + np.dot(np.dot(np.sqrt(W), K), np.sqrt(W)))
+        L_inv = np.linalg.inv(L)
+        b = np.dot(W, f) + first_deri
+        a = b - np.dot(np.sqrt(W), np.dot(L_inv.T, np.dot(L_inv, np.dot(np.dot(np.sqrt(W), K), b))))
+        f_new = np.dot(K, a)
+        difference = np.absolute(f_new - f)
+        error = np.sqrt(np.sum(difference**2))
+        z = y_train * f_new
+        f = f_new
+        print error
+
+        if error <= tolerance:
+            print "The function has already converged after " + `i+1` + " iterations!"
+            print "The error is " + `error`
+            break
 
 
 
@@ -128,4 +147,4 @@ if __name__ == "__main__":
     #plt.show()
 
     # newton iteration
-    newton_method(K_train, y_train, z)
+    newton_method(K_train, y_train, z, num_funs)
