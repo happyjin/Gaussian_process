@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
@@ -6,6 +7,7 @@ from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import StandardScaler
 from scipy.special import expit # logistic function
 from GP_regression import RBF_kernel, f_prior
+from scipy.stats import norm
 np.set_printoptions(precision=3, suppress=True, threshold=np.nan)
 
 # generate dataset
@@ -26,50 +28,75 @@ def dataset_generator():
     X = StandardScaler().fit_transform(X)
     return X, y
 
+# figure out label
+def label_function(f_star):
+    prob_label = pi_function(f_star)
+    if prob_label >= 0.5:
+        return 1
+    else:
+        return -1
+
+# deterministic function pi
+def pi_function(f):
+    return expit(f)
+
 
 # log_likelihood function
 def log_likelihood(z):
-    return -np.log(1 + np.exp(z))
+    return -np.log(1 + np.exp(-z))
 
 
 # first derivative of log_likelihood function
-def deriv_log_likelihood(y, z):
+def deriv_log_likelihood(y, f):
     t = (y + 1) / 2
-    return t - expit(z)
+    return t - pi_function(y*f)
 
 
 # second derivative of log_likelihood function
-def sec_deriv_log_likelihood(z):
-    return -expit(z) * (1 - expit(z))
+def sec_deriv_log_likelihood(f):
+    return -pi_function(f) * (1 - pi_function(f))
 
 
 # Newton method function
-def newton_method(K, y, z, num_funs):
-    num_ele = y.size
-    first_deri = np.zeros((num_ele, num_ele))
-    W = np.zeros((num_ele, num_ele))
-    f = np.zeros((num_ele, num_funs)) # initialize function
-    tolerance = 0.0000001
+def newton_method(K, y_train, f_prior, num_funs, x_star, y_star_true): #K_train, y_train, f_prior, num_funs
+    num_train = y_train.size
+    W = np.zeros((num_train, num_train))
+    f = np.zeros((num_train, num_funs))  # initialize function####
 
+    tolerance = 0.0001
+    step_size = 1
 
-    for i in range(100):
-        first_deri = deriv_log_likelihood(y, z)
-        np.fill_diagonal(W, -sec_deriv_log_likelihood(z))
-        L = np.linalg.cholesky(np.eye(num_ele) + np.dot(np.dot(np.sqrt(W), K), np.sqrt(W)))
+    print "training model!"
+    for i in range(10000):
+        first_deri = deriv_log_likelihood(y_train, f_prior)
+        np.fill_diagonal(W, -sec_deriv_log_likelihood(f_prior))
+        W = step_size * W
+
+        L = np.linalg.cholesky(np.eye(num_train) + np.dot(np.dot(np.sqrt(W), K), np.sqrt(W)))
         L_inv = np.linalg.inv(L)
-        b = np.dot(W, f) + first_deri
+        b = np.dot(W, f) + first_deri########
         a = b - np.dot(np.sqrt(W), np.dot(L_inv.T, np.dot(L_inv, np.dot(np.dot(np.sqrt(W), K), b))))
         f_new = np.dot(K, a)
-        difference = np.absolute(f_new - f)
-        error = np.sqrt(np.sum(difference**2))
-        z = y_train * f_new
-        f = f_new
-        print error
 
+        error = np.sqrt(np.sum((f_new - f)**2))
+        f = f_new
+        print `i+1` + "th iteration, error:" + `error`
         if error <= tolerance:
             print "The function has already converged after " + `i+1` + " iterations!"
             print "The error is " + `error`
+            print "training end!"
             break
+
+    return W, L_inv, first_deri
+
+# make prediction
+def prediction(x_star, y_star_true, X_train, L_inv, W, first_deri, kernel_parameter):
+    k_star = RBF_kernel(X_train, x_star, kernel_parameter)
+    f_star_mean = np.dot(k_star.T, first_deri)
+    v = np.dot(L_inv, np.dot(np.sqrt(W), k_star))
+    k_ss = RBF_kernel(x_star, x_star, kernel_parameter)
+    var_f_star = k_ss - np.dot(v.T, v)
+    return label_function(f_star_mean) == y_star_true
 
 
 
@@ -130,11 +157,11 @@ if __name__ == "__main__":
 
     # compute likelihood function p(y|f), we fix y(training label) and vary GP prior function f
     y_train = y_train.reshape(-1, 1)
+    #y_train = 1
     z = y_train * f_prior
-    prob_likelihood = expit(z)
     log_likeli = log_likelihood(z)
-    deriv_log_likeli = deriv_log_likelihood(y_train, z)
-    sec_deriv_log_likeli = sec_deriv_log_likelihood(z)
+    deriv_log_likeli = deriv_log_likelihood(y_train, f_prior)
+    sec_deriv_log_likeli = sec_deriv_log_likelihood(f_prior)
 
     # log likelihood and its derivatives figure
     plt.subplot(2,3,4)
@@ -146,5 +173,12 @@ if __name__ == "__main__":
     plt.legend()
     #plt.show()
 
+    i = 4
     # newton iteration
-    newton_method(K_train, y_train, z, num_funs)
+    W, L_inv, first_deri = newton_method(K_train, y_train, f_prior, num_funs, X_test[i].reshape(-1,2), y_test[i])
+    true_count = 0
+    for i in range(len(X_test)):
+        judgement = prediction(X_test[i].reshape(-1,2), y_test[i], X_train, L_inv, W, first_deri, kernel_parameter)
+        true_count += judgement
+
+    print "classification right rate is: %0.2f" %(true_count / len(X_test) * 100)
