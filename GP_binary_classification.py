@@ -10,8 +10,14 @@ from GP_regression import RBF_kernel, f_prior
 from scipy.stats import norm
 np.set_printoptions(precision=3, suppress=True, threshold=np.nan)
 
+
 # generate dataset
+
 def dataset_generator():
+    """
+
+    :return:
+    """
     X, y = make_classification(n_features=2, n_redundant=0, n_informative=2,
                                random_state=1, n_clusters_per_class=1)
     rng = np.random.RandomState(2)
@@ -28,49 +34,76 @@ def dataset_generator():
     X = StandardScaler().fit_transform(X)
     return X, y
 
-# figure out label
 def label_function(f_star):
+    """
+    get either test point belongs to +1 or -1 label
+    :param f_star: function value of x_star
+    :return: label for this test point
+    """
     prob_label = pi_function(f_star)
     if prob_label >= 0.5:
         return 1
     else:
         return -1
 
-# deterministic function pi
+
 def pi_function(f):
+    """
+    deterministic function
+    :param f: function value e.g. f(x1), f(x2) etc
+    :return: logistic function
+    """
     return expit(f)
 
 
-# log_likelihood function
 def log_likelihood(z):
+    """
+    # log_likelihood function
+    :param z: label times its function value
+    :return: its log likelihood of current funciton
+    """
     return -np.log(1 + np.exp(-z))
 
 
-# first derivative of log_likelihood function
 def deriv_log_likelihood(y, f):
+    """
+    first derivative of log_likelihood function
+    :param y: label
+    :param f: function value
+    :return: first derivative of its log likelihood function
+    """
     t = (y + 1) / 2
     return t - pi_function(y*f)
 
 
-# second derivative of log_likelihood function
 def sec_deriv_log_likelihood(f):
+    """
+    second derivative of log_likelihood function
+    :param f: function
+    :return: its second derivative of log likelihood
+    """
     return -pi_function(f) * (1 - pi_function(f))
 
 
-# Newton method function
-def newton_method(K, y_train, f_prior, num_funs, x_star, y_star_true): #K_train, y_train, f_prior, num_funs
+def newton_method(K, y_train, f_prior, num_funs):
+    """
+    Newton method update function in order to find the mode of Gaussian approx.
+    :param K: kernel matrix
+    :param y_train: label for training dataset
+    :param f_prior: GP prior
+    :param num_funs: number of prior functions to use
+    :return: W, L inversion, first derivative at optimal point, in other words, mode
+    """
     num_train = y_train.size
     W = np.zeros((num_train, num_train))
     f = np.zeros((num_train, num_funs))  # initialize function####
 
     tolerance = 0.0001
-    step_size = 1
 
     print "training model!"
     for i in range(10000):
         first_deri = deriv_log_likelihood(y_train, f_prior)
         np.fill_diagonal(W, -sec_deriv_log_likelihood(f_prior))
-        W = step_size * W
 
         L = np.linalg.cholesky(np.eye(num_train) + np.dot(np.dot(np.sqrt(W), K), np.sqrt(W)))
         L_inv = np.linalg.inv(L)
@@ -89,8 +122,19 @@ def newton_method(K, y_train, f_prior, num_funs, x_star, y_star_true): #K_train,
 
     return W, L_inv, first_deri
 
-# make prediction
+
 def prediction(x_star, y_star_true, X_train, L_inv, W, first_deri, kernel_parameter):
+    """
+    make prediction
+    :param x_star: input test point
+    :param y_star_true: its label
+    :param X_train: training dataset
+    :param L_inv: L inversion after Cholesky decomposition
+    :param W:
+    :param first_deri: first derivative at mode(optimal point after Newton update)
+    :param kernel_parameter: specify kernel parameter
+    :return: prediction label
+    """
     k_star = RBF_kernel(X_train, x_star, kernel_parameter)
     f_star_mean = np.dot(k_star.T, first_deri)
     v = np.dot(L_inv, np.dot(np.sqrt(W), k_star))
@@ -107,7 +151,8 @@ if __name__ == "__main__":
     X, y = dataset_generator()
     X_train, X_test, y_train, y_test = \
         train_test_split(X, y, test_size=.4, random_state=42)
-    num_train = y_train.size
+    num_train = len(X_train)
+    num_test = len(X_test)
 
     # hyper-parameters
     num_funs = 1 # number of GP prior functions
@@ -157,28 +202,41 @@ if __name__ == "__main__":
 
     # compute likelihood function p(y|f), we fix y(training label) and vary GP prior function f
     y_train = y_train.reshape(-1, 1)
-    #y_train = 1
-    z = y_train * f_prior
+    y_label = 1
+    z = +1 * f_prior
     log_likeli = log_likelihood(z)
-    deriv_log_likeli = deriv_log_likelihood(y_train, f_prior)
+    deriv_log_likeli = deriv_log_likelihood(y_label, f_prior)
     sec_deriv_log_likeli = sec_deriv_log_likelihood(f_prior)
 
     # log likelihood and its derivatives figure
     plt.subplot(2,3,4)
     #plt.clf()
     i = 0
-    plt.plot(z[:,i], log_likeli[:,i], 'bo', label='log likelihood')
-    plt.plot(z[:,i], deriv_log_likeli[:,i], 'ro', label='1st derivative')
-    plt.plot(z[:,i], sec_deriv_log_likeli[:,i], 'go', label='2nd derivative')
-    plt.legend()
+    plt.plot(z[:,i], log_likeli[:,i], 'b-', label='log likelihood')
+    plt.plot(z[:,i], deriv_log_likeli[:,i], 'r--', label='1st derivative')
+    plt.plot(z[:,i], sec_deriv_log_likeli[:,i], 'g--', label='2nd derivative')
+    plt.legend(loc=4)
+
     #plt.show()
 
     i = 4
     # newton iteration
     W, L_inv, first_deri = newton_method(K_train, y_train, f_prior, num_funs, X_test[i].reshape(-1,2), y_test[i])
-    true_count = 0
+    true_count = np.ones(num_test)
     for i in range(len(X_test)):
         judgement = prediction(X_test[i].reshape(-1,2), y_test[i], X_train, L_inv, W, first_deri, kernel_parameter)
-        true_count += judgement
+        if not judgement:
+            true_count[i] = 0
 
-    print "classification right rate is: %0.2f" %(true_count / len(X_test) * 100)
+    false_binary_index = np.where(true_count == 0)[0]
+
+    print "classification right rate is: %0.2f" %(true_count.sum(0) / len(X_test) * 100)
+
+    cm_bright = ListedColormap(['#FF0000', '#0000FF'])
+    plt.subplot(2, 3, 5)
+    plt.scatter(X_train[:, 0], X_train[:, 1], c=y_train, cmap=cm_bright)
+    plt.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=cm_bright, alpha=0.6)
+    for i in range(len(false_binary_index)):
+        plt.scatter(X_test[false_binary_index[i], 0], X_test[false_binary_index[i], 1], marker='x', color='c')
+    plt.title('results with false data points')
+    plt.show()

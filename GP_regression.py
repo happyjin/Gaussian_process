@@ -2,15 +2,31 @@ import numpy as np
 import matplotlib.pyplot as plt
 np.set_printoptions(precision=3, suppress=True)
 
-# RBF kernel
+
 def RBF_kernel(a,b,kernel_parameter):
+    """
+    RBF kernel
+    :param a: input vector a
+    :param b: input vector b
+    :param kernel_parameter: specify kernel parameter
+    :return: kernel matrix(covariance matrix)
+    """
     # loop vectorization
     sqdist = ((a[:, :, None] - b[:, :, None].T) ** 2).sum(1)
     dis_mean = 1
     return dis_mean * np.exp(-.5 * (1 / kernel_parameter) * sqdist)
 
-# f_prior function
+
 def f_prior(X_test, mu_prior, kernel_parameter, num_test, num_fun):
+    """
+    generate GP prior
+    :param X_test: arbitrary sampling points for GP prior
+    :param mu_prior: mean of GP prior
+    :param kernel_parameter: specify kernel parameter
+    :param num_test: number of arbitrary sampling points
+    :param num_fun: number of GP prior functions you want to generate
+    :return: sampling function values of GP prior
+    """
     kernel = RBF_kernel(X_test, X_test, kernel_parameter)  # covariance matrix for prior function
     B = np.linalg.cholesky(kernel + 1e-6 * np.eye(num_test))
     f_prior = mu_prior + np.dot(B, np.random.normal(size=(num_test, num_fun)))
