@@ -4,5 +4,5 @@ ncoord = np.array(ncoord)
 D = np.sqrt(((ncoord[:, :, None] - ncoord[:, :, None].T) ** 2).sum(1))
 
 y = np.asarray([1,2,3,4,5,6,7,8,9]).reshape(-1,3)
-a = np.asarray([1,-1,-1,1,1,1,1,-1,-1]).reshape(-1,1)
+a = np.asarray([1,-1,-1,1,1,1,1,-1]).reshape(-1,1)
 print len(y)
