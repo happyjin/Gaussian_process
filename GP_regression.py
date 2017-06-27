@@ -55,7 +55,7 @@ if __name__ == "__main__":
     mu_prior = np.zeros((n, 1)) # zero mean for multivariate Gaussian
     f_prior = f_prior(X_test, mu_prior, kernel_parameter, n, num_fun)
 
-    # plot prior function
+    # plot prior function.
     #plt.figure(1)
     plt.subplot(2,2,1)
     #plt.clf()

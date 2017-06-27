@@ -167,7 +167,7 @@ if __name__ == "__main__":
     plt.scatter(X_test[:, 0], X_test[:, 1], c=y_test, cmap=cm_bright, alpha=0.6)
     plt.title('data points')
 
-    # compute covariance matrix K under RBF_kernel
+    # compute covariance matrix K under RBF_kernel.
     K_train = RBF_kernel(X_train, X_train, kernel_parameter)
 
     # sampling points for GP prior function
