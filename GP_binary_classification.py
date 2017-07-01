@@ -7,15 +7,12 @@ from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import StandardScaler
 from scipy.special import expit # logistic function
 from GP_regression import RBF_kernel, f_prior
-from scipy.stats import norm
 np.set_printoptions(precision=3, suppress=True, threshold=np.nan)
 
 
-# generate dataset
-
 def dataset_generator():
     """
-
+    generate dataset for binary classification
     :return:
     """
     X, y = make_classification(n_features=2, n_redundant=0, n_informative=2,
@@ -85,7 +82,7 @@ def sec_deriv_log_likelihood(f):
     return -pi_function(f) * (1 - pi_function(f))
 
 
-def newton_method(K, y_train, f_prior, num_funs):
+def model_training(K, y_train, f_prior, num_funs):
     """
     Newton method update function in order to find the mode of Gaussian approx.
     :param K: kernel matrix
@@ -101,6 +98,7 @@ def newton_method(K, y_train, f_prior, num_funs):
     tolerance = 0.0001
 
     print "training model!"
+    # newton method
     for i in range(10000):
         first_deri = deriv_log_likelihood(y_train, f_prior)
         np.fill_diagonal(W, -sec_deriv_log_likelihood(f_prior))
@@ -113,6 +111,7 @@ def newton_method(K, y_train, f_prior, num_funs):
 
         error = np.sqrt(np.sum((f_new - f)**2))
         f = f_new
+        print f.shape
         print `i+1` + "th iteration, error:" + `error`
         if error <= tolerance:
             print "The function has already converged after " + `i+1` + " iterations!"
@@ -143,10 +142,7 @@ def prediction(x_star, y_star_true, X_train, L_inv, W, first_deri, kernel_parame
     return label_function(f_star_mean) == y_star_true
 
 
-
-
 if __name__ == "__main__":
-
     # generate dataset
     X, y = dataset_generator()
     X_train, X_test, y_train, y_test = \
@@ -221,7 +217,7 @@ if __name__ == "__main__":
 
     i = 4
     # newton iteration
-    W, L_inv, first_deri = newton_method(K_train, y_train, f_prior, num_funs, X_test[i].reshape(-1,2), y_test[i])
+    W, L_inv, first_deri = model_training(K_train, y_train, f_prior, num_funs)
     true_count = np.ones(num_test)
     for i in range(len(X_test)):
         judgement = prediction(X_test[i].reshape(-1,2), y_test[i], X_train, L_inv, W, first_deri, kernel_parameter)
