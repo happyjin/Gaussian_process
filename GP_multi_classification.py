@@ -19,7 +19,7 @@ def savetxt_compact(fname, x, fmt="%1.2f", delimiter=' '):
     :return:
     """
     with open(fname, 'w') as fh:
-        for row in x:
+        for row in x.T:
             line = delimiter.join("0" if value == 0 else fmt % value for value in row)
             fh.write(line + '\n')
 
@@ -34,7 +34,7 @@ def softmax(X):
     return e_x / e_x.sum(axis=0)
 
 
-def compute_pi(f, pi_vector, pi_matrix, C, n):
+def compute_pi(f, C, n):
     """
     compute pi_matrix and pi_vector
     :param f: functions
@@ -44,8 +44,10 @@ def compute_pi(f, pi_vector, pi_matrix, C, n):
     :param n: num of training data
     :return: pi_vector, pi_matrix
     """
+    pi_vector = np.zeros_like(f)
+    pi_matrix = np.zeros((C*n, n))
     softmax_output = np.zeros(C)
-    index_put = np.arange(3)
+    index_put = np.arange(C)
 
     for i in range(n):
         triple = np.zeros(C)
@@ -57,7 +59,7 @@ def compute_pi(f, pi_vector, pi_matrix, C, n):
             pi_vector[j*60+i] = softmax_output[j]
         pi_column.put(index_put, softmax_output)
         pi_matrix[:, i] = np.copy(pi_column)
-        index_put += 3
+        index_put += C
     #np.savetxt('pi_matrix.txt',pi_matrix, fmt='%1.2f', delimiter=' ', newline=os.linesep)
     return pi_vector, pi_matrix
 
@@ -73,31 +75,34 @@ def model_training(K, y, C, n):
     """
     # initialization
     f = np.zeros((C*n,)) # initialize f=0(unbiased) which is an constant=0 function and means no GP prior in this case
-    pi_vector = np.zeros_like(f)
-    pi_matrix = np.zeros((C*n, n))
+
     D = np.zeros((C*n, C*n))
     tolerance = 0.0001
-    s = 0.0005
+    s = 0.0001
 
     # Newton iteration
-    for i in range(1):
-        pi_vector, pi_matrix = compute_pi(f, pi_vector, pi_matrix, C, n)
+    for j in range(5):
+        pi_vector, pi_matrix = compute_pi(f, C, n)
         np.fill_diagonal(D, pi_vector)
         #np.savetxt('D.txt',D, fmt='%1.2f', delimiter=' ', newline=os.linesep)
         M = n
         block_K = [K[i * M:(i + 1) * M, i * M:(i + 1) * M] for i in range(K.shape[0] / M)]
         block_D = [D[i * M:(i + 1) * M, i * M:(i + 1) * M] for i in range(D.shape[0] / M)]
+        #savetxt_compact('block_D1.txt', block_D[0])
         E_c = np.zeros((n, n))
         for c in range(C):
-            L = np.linalg.cholesky(np.eye(n) + np.dot(np.sqrt(block_D[c]), np.dot(block_K[c], block_D[c])))
+            L = np.linalg.cholesky(np.eye(n) + np.dot(np.sqrt(block_D[c]), np.dot(block_K[c], np.sqrt(block_D[c]))))
             L_inv = np.linalg.inv(L)
-            E_c = np.dot(np.sqrt(block_D[c]), np.dot(L_inv.T, np.dot(L_inv, np.sqrt(block_D[c]))))
+            E_c_sub = np.dot(np.sqrt(block_D[c]), np.dot(L_inv.T, np.dot(L_inv, np.sqrt(block_D[c]))))
             # create a block diagonal matrix E
             if c == 0:
-                E = E_c
+                E = E_c_sub
             else:
-                E = block_diag(E, E_c)
-            E_c += E_c
+                E = block_diag(E, E_c_sub)
+            E_c += E_c_sub
+        E = np.dot(np.sqrt(D), np.dot(np.linalg.inv(np.eye(C*n) + np.dot(np.sqrt(D), np.dot(K, np.sqrt(D)))), np.sqrt(D)))
+        #print E_2.shape
+        #print np.array_equal(E, E_2)
         M = np.linalg.cholesky(E_c)
         b = np.dot(D - np.dot(pi_matrix, pi_matrix.T), f) + y - pi_vector
         c = np.dot(E, np.dot(K, b))
@@ -108,14 +113,12 @@ def model_training(K, y, C, n):
 
         error = np.sqrt(np.sum((f_new - f) ** 2))
         f = f_new
-        print `i + 1` + "th iteration, error:" + `error`
+        print `j + 1` + "th iteration, error:" + `error`
         if error <= tolerance:
-            print "The function has already converged after " + `i + 1` + " iterations!"
+            print "The function has already converged after " + `j + 1` + " iterations!"
             print "The error is " + `error`
             print "training end!"
             break
-
-
 
 
 def dataset_generator():
@@ -148,9 +151,13 @@ if __name__ == "__main__":
     kernel_parameter = 1
 
     # compute kernel matrix K
-    K1 = RBF_kernel(X_train, X_train, kernel_parameter)
-    K = np.kron(np.eye(num_classes), K1)
-    savetxt_compact('K.txt', K)
+    for c in range(num_classes):
+        K_sub = RBF_kernel(X_train, X_train, kernel_parameter)
+        if c == 0:
+            K = K_sub
+        else:
+            K = block_diag(K, K_sub)
+    #np.savetxt('K.txt', K, fmt='%1.2f', delimiter=' ', newline=os.linesep)
     # generate 0/1 targets for training dataset
     y_targets = np.zeros((num_classes*num_train,))
     index = np.arange(num_train)
