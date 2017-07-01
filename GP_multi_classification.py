@@ -60,7 +60,6 @@ def compute_pi(f, C, n):
         pi_matrix[:, i] = np.copy(pi_column)
         index_put += C
 
-    savetxt_compact('pi_matrix.txt', pi_matrix)
     return pi_vector, pi_matrix
 
 
