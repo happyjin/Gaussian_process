@@ -1,4 +1,3 @@
-#from __future__ import division
 from sklearn.datasets import make_blobs
 from sklearn.cross_validation import train_test_split
 from GP_regression import RBF_kernel
@@ -36,7 +35,7 @@ def softmax(X):
 
 def compute_pi(f, C, n):
     """
-    compute pi_matrix and pi_vector
+    compute pi_matrix and pi_vector through softmax function
     :param f: functions
     :param pi_vector: column vector of pi elements
     :param pi_matrix: Cn*n matrix by stacking vertically the diagonal matrices pi_c
@@ -129,6 +128,14 @@ def model_training(K, y, C, n):
 
 
 def model_training2(K, y, C, n):
+    """
+    train the model
+    :param K: kernel matrix
+    :param y: labels of training dataset
+    :param C: num of classes
+    :param n: num of training data
+    :return: pi vector which computed through softmax
+    """
     tolerance = 0.01
     step_size = 0.0001
     s = 3
@@ -159,12 +166,23 @@ def model_training2(K, y, C, n):
     return pi_vector
 
 def prediction(x_star, y_star_true, X_train, C, y, pi_vector, kernel_parameter):
+    """
+    make prediction
+    :param x_star: test input
+    :param y_star_true: label of test input
+    :param X_train: training dataset
+    :param C: num of classes
+    :param y: labels of training dataset
+    :param pi_vector: pi vector which computed through softmax function
+    :param kernel_parameter: parameter for kernel
+    :return: true or false
+    """
     n = len(X_train)
     k_star = RBF_kernel(X_train, x_star, kernel_parameter)
     f_star_mean = np.zeros((C,))
     for c in range(C):
         f_star_mean[c] = np.dot(k_star.T, y[c*n:(c+1)*n] - pi_vector[c*n:(c+1)*n])
-    print np.argmax(f_star_mean) == y_star_true
+    return np.argmax(f_star_mean) == y_star_true
 
 def dataset_generator():
     """
@@ -175,13 +193,14 @@ def dataset_generator():
     X, y = make_blobs(n_features=2, centers=3)
     plt.scatter(X[:, 0], X[:, 1], marker='o', c=y)
     plt.show()
-    np.save('X_multi.npy', X)
-    np.save('y_multi.npy', y)
+    #np.save('X_multi.npy', X)
+    #np.save('y_multi.npy', y)
     return X, y
 
 
 if __name__ == "__main__":
     if not os.path.exists('X_multi.npy'):
+        # randomly generate dataset for classification task
         X, y = dataset_generator()
     else:
         X = np.load('X_multi.npy')
@@ -203,7 +222,6 @@ if __name__ == "__main__":
             K = K_sub
         else:
             K = block_diag(K, K_sub)
-    #np.savetxt('K.txt', K, fmt='%1.2f', delimiter=' ', newline=os.linesep)
     # generate 0/1 targets for training dataset
     y_targets = np.zeros((num_classes*num_train,))
     index = np.arange(num_train)
@@ -214,6 +232,9 @@ if __name__ == "__main__":
     # train the model
     #model_training(K, y_targets, num_classes, num_train)
     pi_vector = model_training2(K, y_targets, num_classes, num_train)
-
-    i = 17
-    prediction(X_test[i].reshape(-1,2), y_test[i], X_train, num_classes, y_targets, pi_vector, kernel_parameter)
+    true_count = np.ones(num_test)
+    for i in range(len(X_test)):
+        judgement = prediction(X_test[i].reshape(-1,2), y_test[i], X_train, num_classes, y_targets, pi_vector, kernel_parameter)
+        if not judgement:
+            true_count[i] = 0
+    print "classification right rate is: %0.2f percent" % (true_count.sum(0) / len(X_test) * 100)
