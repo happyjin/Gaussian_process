@@ -141,7 +141,8 @@ def model_training2(K, y, C, n):
     # initialization
     f = np.zeros((C * n,))  # initialize f=0(unbiased) which is an constant=0 function and means no GP prior in this case
 
-    for j in range(100):
+    # Newton iteration
+    for j in range(10000):
         pi_vector, pi_matrix = compute_pi(f, C, n)
         L = np.linalg.cholesky(s * np.eye(C*n) + K)
         L_inv = np.linalg.inv(L)
@@ -164,6 +165,7 @@ def model_training2(K, y, C, n):
             break
     return pi_vector
 
+
 def prediction(x_star, y_star_true, X_train, C, y, pi_vector, kernel_parameter):
     """
     make prediction
@@ -182,6 +184,7 @@ def prediction(x_star, y_star_true, X_train, C, y, pi_vector, kernel_parameter):
     for c in range(C):
         f_star_mean[c] = np.dot(k_star.T, y[c*n:(c+1)*n] - pi_vector[c*n:(c+1)*n])
     return np.argmax(f_star_mean) == y_star_true
+
 
 def dataset_generator():
     """
@@ -224,7 +227,6 @@ if __name__ == "__main__":
     # generate 0/1 targets for training dataset
     y_targets = np.zeros((num_classes*num_train,))
     index = np.arange(num_train)
-    #for i in range(len(num_classes)):
     indices = y_train * 60 + index
     y_targets[indices] = 1
 
