@@ -9,7 +9,7 @@ import os
 np.set_printoptions(precision=3, suppress=True, threshold=np.nan)
 
 
-def savetxt_compact(fname, x, fmt="%1.2f", delimiter=' '):
+def savetxt_compact(fname, x, fmt="%1.1f", delimiter=' '):
     """
     save matrix or vector into txt in order to visualize the data
     :param fname: name of file, e.g. matrix.txt
@@ -19,7 +19,7 @@ def savetxt_compact(fname, x, fmt="%1.2f", delimiter=' '):
     :return:
     """
     with open(fname, 'w') as fh:
-        for row in x.T:
+        for row in x:
             line = delimiter.join("0" if value == 0 else fmt % value for value in row)
             fh.write(line + '\n')
 
@@ -60,7 +60,8 @@ def compute_pi(f, C, n):
         pi_column.put(index_put, softmax_output)
         pi_matrix[:, i] = np.copy(pi_column)
         index_put += C
-    #np.savetxt('pi_matrix.txt',pi_matrix, fmt='%1.2f', delimiter=' ', newline=os.linesep)
+
+    savetxt_compact('pi_matrix.txt', pi_matrix)
     return pi_vector, pi_matrix
 
 
@@ -73,40 +74,46 @@ def model_training(K, y, C, n):
     :param n: num of training data
     :return:
     """
+    tolerance = 0.0001
+    step_size = 0.00001
+    s = 0.0005
     # initialization
     f = np.zeros((C*n,)) # initialize f=0(unbiased) which is an constant=0 function and means no GP prior in this case
-
-    D = np.zeros((C*n, C*n))
-    tolerance = 0.0001
-    s = 0.0001
+    block_K = [K[i * n:(i + 1) * n, i * n:(i + 1) * n] for i in range(K.shape[0] / n)]
 
     # Newton iteration
-    for j in range(5):
+    for j in range(100):
         pi_vector, pi_matrix = compute_pi(f, C, n)
+        D = np.zeros((C * n, C * n))
         np.fill_diagonal(D, pi_vector)
-        #np.savetxt('D.txt',D, fmt='%1.2f', delimiter=' ', newline=os.linesep)
-        M = n
-        block_K = [K[i * M:(i + 1) * M, i * M:(i + 1) * M] for i in range(K.shape[0] / M)]
-        block_D = [D[i * M:(i + 1) * M, i * M:(i + 1) * M] for i in range(D.shape[0] / M)]
-        #savetxt_compact('block_D1.txt', block_D[0])
-        E_c = np.zeros((n, n))
+        savetxt_compact('D.txt',D)
+        block_D = [D[i * n:(i + 1) * n, i * n:(i + 1) * n] for i in range(D.shape[0] / n)]
+        savetxt_compact('block_D0.txt', block_D[0])
+        savetxt_compact('block_D2.txt', block_D[2])
+        E_c_sum = np.zeros((n, n))
         for c in range(C):
             L = np.linalg.cholesky(np.eye(n) + np.dot(np.sqrt(block_D[c]), np.dot(block_K[c], np.sqrt(block_D[c]))))
             L_inv = np.linalg.inv(L)
-            E_c_sub = np.dot(np.sqrt(block_D[c]), np.dot(L_inv.T, np.dot(L_inv, np.sqrt(block_D[c]))))
+            E_c_part = np.dot(np.sqrt(block_D[c]), np.dot(L_inv.T, np.dot(L_inv, np.sqrt(block_D[c]))))
             # create a block diagonal matrix E
             if c == 0:
-                E = E_c_sub
+                E = E_c_part
             else:
-                E = block_diag(E, E_c_sub)
-            E_c += E_c_sub
-        E = np.dot(np.sqrt(D), np.dot(np.linalg.inv(np.eye(C*n) + np.dot(np.sqrt(D), np.dot(K, np.sqrt(D)))), np.sqrt(D)))
-        #print E_2.shape
-        #print np.array_equal(E, E_2)
-        M = np.linalg.cholesky(E_c)
-        b = np.dot(D - np.dot(pi_matrix, pi_matrix.T), f) + y - pi_vector
-        c = np.dot(E, np.dot(K, b))
+                E = block_diag(E, E_c_part)
+            E_c_sum += E_c_part
+        L_whole = np.linalg.cholesky(np.eye(C*n) + np.dot(np.sqrt(D), np.dot(K, np.sqrt(D))))
+        L_whole_inv = np.linalg.inv(L_whole)
+        E = np.dot(np.sqrt(D), np.dot(L_whole_inv.T, np.dot(L_whole_inv, np.sqrt(D))))
+        #E = np.dot(np.sqrt(D), np.dot(np.linalg.inv(np.eye(C*n) + np.dot(np.sqrt(D), np.dot(K, np.sqrt(D)))), np.sqrt(D)))
         R = np.dot(np.linalg.inv(D), pi_matrix)
+        #M = np.linalg.cholesky(E_c_sum)
+        M = np.linalg.cholesky(np.dot(R.T, np.dot(E, R)))
+        W = D - np.dot(pi_matrix, pi_matrix.T)
+        L_K = np.linalg.cholesky(s * np.eye(C*n) + K)
+        L_K_inv = np.linalg.inv(L_K)
+
+        b = np.dot((1-step_size) * np.dot(L_K_inv.T, L_K_inv) + W, f) + y - pi_vector
+        c = np.dot(E, np.dot(K, b))
         M_inv = np.linalg.inv(M)
         a = b - c + np.dot(E, np.dot(R, np.dot(M_inv.T, np.dot(M_inv, np.dot(R.T, c)))))
         f_new = np.dot(K, a)
@@ -121,22 +128,61 @@ def model_training(K, y, C, n):
             break
 
 
+def model_training2(K, y, C, n):
+    tolerance = 0.01
+    step_size = 0.0001
+    s = 3
+    # initialization
+    f = np.zeros((C * n,))  # initialize f=0(unbiased) which is an constant=0 function and means no GP prior in this case
+
+    for j in range(100):
+        pi_vector, pi_matrix = compute_pi(f, C, n)
+        L = np.linalg.cholesky(s * np.eye(C*n) + K)
+        L_inv = np.linalg.inv(L)
+        D = np.zeros((C * n, C * n))
+        np.fill_diagonal(D, pi_vector)
+        W = D - np.dot(pi_matrix, pi_matrix.T)
+        sec_deri = np.dot(L_inv.T, L_inv) + W
+        print sec_deri.shape
+        L_sec_deri = np.linalg.cholesky(s * np.eye(C*n) + sec_deri)
+        L_inv_sec_deri = np.linalg.inv(L_sec_deri)
+        sum = np.dot((1-step_size)*np.dot(L_inv.T, L_inv)+W, f) + y + pi_vector
+        f_new = np.dot(L_inv_sec_deri, sum)
+        error = np.sqrt(np.sum((f_new - f) ** 2))
+        f = f_new
+        print `j + 1` + "th iteration, error:" + `error`
+        if error <= tolerance:
+            print "The function has already converged after " + `j + 1` + " iterations!"
+            print "The error is " + `error`
+            print "training end!"
+            break
+    return pi_vector
+
+def prediction(x_star, y_star_true, X_train, C, y, pi_vector, kernel_parameter):
+    n = len(X_train)
+    k_star = RBF_kernel(X_train, x_star, kernel_parameter)
+    f_star_mean = np.zeros((C,))
+    for c in range(C):
+        f_star_mean[c] = np.dot(k_star.T, y[c*n:(c+1)*n] - pi_vector[c*n:(c+1)*n])
+    print np.argmax(f_star_mean) == y_star_true
+
 def dataset_generator():
     """
     generate multi-class dataset
-    :return:
+    :return: data X and its labels
     """
     plt.title("Three blobs", fontsize='small')
-    X, Y = make_blobs(n_features=2, centers=3)
-    plt.scatter(X[:, 0], X[:, 1], marker='o', c=Y)
+    X, y = make_blobs(n_features=2, centers=3)
+    plt.scatter(X[:, 0], X[:, 1], marker='o', c=y)
     plt.show()
     np.save('X_multi.npy', X)
-    np.save('y_multi.npy', Y)
+    np.save('y_multi.npy', y)
+    return X, y
 
 
 if __name__ == "__main__":
     if not os.path.exists('X_multi.npy'):
-        dataset_generator()
+        X, y = dataset_generator()
     else:
         X = np.load('X_multi.npy')
         y = np.load('y_multi.npy')
@@ -166,4 +212,8 @@ if __name__ == "__main__":
     y_targets[indices] = 1
 
     # train the model
-    model_training(K, y_targets, num_classes, num_train)
+    #model_training(K, y_targets, num_classes, num_train)
+    pi_vector = model_training2(K, y_targets, num_classes, num_train)
+
+    i = 17
+    prediction(X_test[i].reshape(-1,2), y_test[i], X_train, num_classes, y_targets, pi_vector, kernel_parameter)
