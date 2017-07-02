@@ -31,6 +31,7 @@ def dataset_generator():
     X = StandardScaler().fit_transform(X)
     return X, y
 
+
 def label_function(f_star):
     """
     get either test point belongs to +1 or -1 label
