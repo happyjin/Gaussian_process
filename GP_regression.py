@@ -1,20 +1,54 @@
+from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
 np.set_printoptions(precision=3, suppress=True)
 
 
-def RBF_kernel(a, b, lengthscale):
+def RBF_kernel(a, b, l):
     """
     RBF kernel
     :param a: input vector a
     :param b: input vector b
-    :param lengthscale: specify kernel parameter
+    :param l: lengthscale
     :return: kernel matrix(covariance matrix)
     """
+    output_variance = 1  # determines the average distance of function away from its mean. It's just a scale factor
     # loop vectorization
     sqdist = ((a[:, :, None] - b[:, :, None].T) ** 2).sum(1)
-    variance = 1 # determines the average distance of function away from its mean. It's just a scale factor
-    return variance * np.exp(-.5 * (1 / lengthscale) * sqdist)
+    return output_variance * np.exp(-.5 * (1 / l) * sqdist)
+
+
+def lin_kernel(a, b, c):
+    """
+    linear kernel
+    :param a: input vector a
+    :param b: input vector b
+    :param c: offset c determines the x-coordinate of the point that all the lines in the posterior go though
+    :return: kernel matrix(covariance matrix)
+    """
+    output_variance = 1
+    fun_mean = 0 # zero-mean Gaussian priors
+    dot_product = np.dot(a - c, b.T - c)
+    print (fun_mean + output_variance * dot_product).shape
+    return fun_mean + output_variance * dot_product
+
+
+def per_kernel(a, b, parameters):
+    """
+    periodic kernel
+    :param a: input vector a
+    :param b: input vector b
+    :param parameters: period and lengthscale
+    :return: kernel matrix(covariance matrix)
+    """
+    output_variance = 1
+    p, l = parameters
+    num_a = len(a)
+    num_b = len(b)
+    l2_norm = np.absolute(np.tile(a, (1, num_b)) - np.tile(b.T, (num_a, 1)))
+    f = lambda x: output_variance * np.exp(-2 * (np.sin(np.pi * l2_norm / p))**2 / l**2)
+    return f(l2_norm)
 
 
 def dataset_generator():
@@ -45,10 +79,15 @@ def f_prior(X_test, mu_prior, kernel_choice, kernel_parameter, num_fun):
     :param num_fun: number of GP prior functions you want to generate
     :return: sampling function values of GP prior
     """
+    s = 0.0005  # noise variance and zero mean for noise
     num_test = len(X_test)
     if kernel_choice == 'rbf':
         kernel = RBF_kernel(X_test, X_test, kernel_parameter)  # covariance matrix for prior function
-    B = np.linalg.cholesky(kernel + 1e-6 * np.eye(num_test))
+    if kernel_choice == 'lin':
+        kernel = lin_kernel(X_test, X_test, kernel_parameter)
+    if kernel_choice == 'per':
+        kernel = per_kernel(X_test, X_test, kernel_parameter)
+    B = np.linalg.cholesky(kernel + s * np.eye(num_test))
     f_prior = mu_prior + np.dot(B, np.random.normal(size=(num_test, num_fun)))
     return f_prior
 
@@ -73,6 +112,19 @@ def prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter):
     if kernel_choice == 'rbf':
         K_train = RBF_kernel(X_train, X_train, kernel_parameter)
         K_s = RBF_kernel(X_train, X_test, kernel_parameter)
+        K_ss = RBF_kernel(X_test, X_test, kernel_parameter)
+        print K_s.shape
+    if kernel_choice == 'lin':
+        K_train = lin_kernel(X_train, X_train, kernel_parameter)
+        K_s = lin_kernel(X_train, X_test, kernel_parameter)
+        K_ss = lin_kernel(X_test, X_test, kernel_parameter)
+    if kernel_choice == 'per':
+        K_train = per_kernel(X_train, X_train, kernel_parameter)
+        K_s = per_kernel(X_train, X_test, kernel_parameter)
+        print X_train.shape
+        print X_test.shape
+        print K_s.shape
+        K_ss = per_kernel(X_test, X_test, kernel_parameter)
 
     L = np.linalg.cholesky(K_train + s * np.eye(N))
     m = np.linalg.solve(L, y_train)
@@ -80,7 +132,6 @@ def prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter):
 
     # compute mean of test points for posterior
     mu_post = np.dot(K_s.T, alpha)
-    K_ss = RBF_kernel(X_test, X_test, kernel_parameter)
     v = np.linalg.solve(L, K_s)
 
     # compute variance for test points
@@ -94,6 +145,61 @@ def prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter):
     return mu_post, stand_devi, f_post_fun
 
 
+def plot_rbf_kernel():
+    """
+    plot RBF kernel
+    :return:
+    """
+    plt.subplot(4, 2, 1)
+    mu = 3
+    variance = 1
+    sigma = np.sqrt(variance)
+    x = np.linspace(mu - 3 * variance, mu + 3 * variance, 100)
+    plt.plot(x, mlab.normpdf(x, mu, sigma))
+    plt.title('RBF kernel')
+
+
+def plot_lin_kernel():
+    """
+    plot linear kernel
+    :return:
+    """
+    # fix x_ = 3
+    x_ = 3
+    output_variance = 1
+    c = 0 # offset
+    mean_function = 0
+    x = np.linspace(x_ - 3 * output_variance, x_ + 3 * output_variance, 100)
+    f = lambda x: mean_function + output_variance * (x-c) * (x_-c)
+    plt.subplot(4, 2, 1)
+    plt.plot(x, f(x))
+    plt.title('linear kernel')
+
+
+def plot_per_kernel():
+    output_variance = 1
+    p, l = np.array([1, 1])
+    x_ = 3
+    x = np.linspace(x_ - 3 * output_variance, x_ + 3 * output_variance, 100)
+    f = lambda x: output_variance * np.exp(-2 * (np.sin(np.pi * x / p)) ** 2 / l ** 2)
+    plt.subplot(4, 2, 1)
+    plt.plot(x, f(x))
+    plt.title('periodic kernel')
+
+def plot_kernel(kernel_choice):
+    """
+    plot different kernel based on choice of kernel
+    :param kernel_choice: 'rbf','lin','per'
+    :return:
+    """
+    if kernel_choice == 'rbf':
+        plot_rbf_kernel()
+    if kernel_choice == 'lin':
+        plot_lin_kernel()
+    if kernel_choice == 'per':
+        plot_per_kernel()
+
+
 def plot_prior(X_test, f_prior_fun, kernel_stand_deiv):
     """
     plot prior functions
@@ -101,7 +207,7 @@ def plot_prior(X_test, f_prior_fun, kernel_stand_deiv):
     :param kernel_stand_deiv: variance that away from its mean
     :return:
     """
-    plt.subplot(2, 2, 1)
+    plt.subplot(4, 2, 3)
     plt.fill_between(X_test.flat, 0 - kernel_stand_deiv, 0 + kernel_stand_deiv, color="#dddddd")
     plt.plot(X_test, f_prior_fun)
     plt.title('samples from the GP prior')
@@ -117,7 +223,7 @@ def plot_posterior(X_test, f_post_fun, mu_post, stand_devi):
     :param stand_devi: standard derivation of posterior functions
     :return:
     """
-    plt.subplot(2,2,2)
+    plt.subplot(4, 2, 5)
     plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
     plt.plot(X_test, f_post_fun)
     plt.plot(X_test, mu_post, 'r--', lw=2)
@@ -135,7 +241,7 @@ def plot_true_diff(X_train, y_train, true_fun, mu_post, stand_devi):
     :param stand_devi: standard derivation of posterior functions
     :return:
     """
-    plt.subplot(2, 2, 3)
+    plt.subplot(4, 2, 7)
     plt.plot(X_train, y_train, 'r+', ms=20)
     plt.plot(X_test, true_fun(X_test), 'b-')
     plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
@@ -145,6 +251,9 @@ def plot_true_diff(X_train, y_train, true_fun, mu_post, stand_devi):
 
 
 def GP_regression(X_train, y_train, X_test, num_fun, kernel_choice, kernel_parameter):
+
+    # plot kernel function
+    plot_kernel(kernel_choice)
 
     # GP prior
     f_prior_fun = prior_process(X_test, kernel_choice, kernel_parameter, num_fun)
@@ -166,14 +275,14 @@ def GP_regression(X_train, y_train, X_test, num_fun, kernel_choice, kernel_param
 
 if __name__ == "__main__":
 
-    N = 5           # number of training points
-    n = 100          # number of test points
+    N = 5   # number of training points
+    n = 100 # number of test points
 
     # hyper-parameters
-    num_fun = 10    # number of prior function
-    kernel_parameter = 1
+    num_fun = 10          # number of prior function
+    kernel_parameter = [1, 1]  # parameter for kernel
     kernel_stand_deiv = 1 # standard deviation for kernel
-    kernel_choice = 'rbf' # can be 'rbf', 'per', 'lin'
+    kernel_choice = 'per' # can be 'rbf', 'per', 'lin'
 
     # generate dataset for GP regression
     true_fun, X_train, y_train, X_test = dataset_generator()
