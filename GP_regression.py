@@ -30,7 +30,6 @@ def lin_kernel(a, b, c):
     output_variance = 1
     fun_mean = 0 # zero-mean Gaussian priors
     dot_product = np.dot(a - c, b.T - c)
-    print (fun_mean + output_variance * dot_product).shape
     return fun_mean + output_variance * dot_product
 
 
@@ -113,7 +112,6 @@ def prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter):
         K_train = RBF_kernel(X_train, X_train, kernel_parameter)
         K_s = RBF_kernel(X_train, X_test, kernel_parameter)
         K_ss = RBF_kernel(X_test, X_test, kernel_parameter)
-        print K_s.shape
     if kernel_choice == 'lin':
         K_train = lin_kernel(X_train, X_train, kernel_parameter)
         K_s = lin_kernel(X_train, X_test, kernel_parameter)
@@ -121,9 +119,6 @@ def prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter):
     if kernel_choice == 'per':
         K_train = per_kernel(X_train, X_train, kernel_parameter)
         K_s = per_kernel(X_train, X_test, kernel_parameter)
-        print X_train.shape
-        print X_test.shape
-        print K_s.shape
         K_ss = per_kernel(X_test, X_test, kernel_parameter)
 
     L = np.linalg.cholesky(K_train + s * np.eye(N))
@@ -137,6 +132,7 @@ def prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter):
     # compute variance for test points
     var_test = np.diag(K_ss) - np.sum(v ** 2, axis=0)
     stand_devi = np.sqrt(var_test)
+    #print stand_devi
 
     # sample from test points
     L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
@@ -224,6 +220,7 @@ def plot_posterior(X_test, f_post_fun, mu_post, stand_devi):
     :return:
     """
     plt.subplot(4, 2, 5)
+    print mu_post - 3 * stand_devi
     plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
     plt.plot(X_test, f_post_fun)
     plt.plot(X_test, mu_post, 'r--', lw=2)
