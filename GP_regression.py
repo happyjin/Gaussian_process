@@ -5,7 +5,7 @@ import matplotlib.mlab as mlab
 np.set_printoptions(precision=3, suppress=True)
 
 
-def RBF_kernel(a, b, l):
+def RBF_kernel(a, b, sigma, l):
     """
     RBF kernel
     :param a: input vector a
@@ -13,10 +13,31 @@ def RBF_kernel(a, b, l):
     :param l: lengthscale
     :return: kernel matrix(covariance matrix)
     """
-    output_variance = 1  # determines the average distance of function away from its mean. It's just a scale factor
+    #sigma = 1  # determines the average distance of function away from its mean. It's just a scale factor
     # loop vectorization
     sqdist = ((a[:, :, None] - b[:, :, None].T) ** 2).sum(1)
-    return output_variance * np.exp(-.5 * (1 / l) * sqdist)
+    return (sigma ** 2) * np.exp(-.5 * (1 / (l ** 2)) * sqdist)
+
+
+def tune_hyperparms(a, b, sigma, l, alpha, K_y):
+    step_size = 0.01
+
+    sqdist = ((a[:, :, None] - b[:, :, None].T) ** 2).sum(1)
+    # tune hyperparameter sigma
+    sigma_grad = 2 * sigma * np.exp(-.5*sqdist/(l**2))
+    sigma_matrix = np.dot(np.dot(alpha, alpha.T) - K_y, sigma_grad)
+    tr_sigma = np.diagonal(sigma_matrix).sum()
+    sigma_var = .5 * tr_sigma
+    # tune hyperparameter l
+    l_grad = sigma**2 * np.exp(-.5*sqdist/(l**2)) * (sqdist/l**3)
+    l_matrix = np.dot(np.dot(alpha, alpha.T) - K_y, l_grad)
+    tr_l = np.diagonal(l_matrix).sum()
+    l_var = .5 * tr_l
+
+    # gradient ascent to maximum log marginal likelihood simultaneously
+    sigma = sigma + step_size * sigma_var
+    l = l + step_size * l_var
+    return sigma, l
 
 
 def lin_kernel(a, b, c):
@@ -79,9 +100,10 @@ def f_prior(X_test, mu_prior, kernel_choice, kernel_parameter, num_fun):
     :return: sampling function values of GP prior
     """
     s = 0.0005  # noise variance and zero mean for noise
+    sigma = 1
     num_test = len(X_test)
     if kernel_choice == 'rbf':
-        kernel = RBF_kernel(X_test, X_test, kernel_parameter)  # covariance matrix for prior function
+        kernel = RBF_kernel(X_test, X_test, sigma, kernel_parameter)  # covariance matrix for prior function
     if kernel_choice == 'lin':
         kernel = lin_kernel(X_test, X_test, kernel_parameter)
     if kernel_choice == 'per':
@@ -105,35 +127,56 @@ def prior_process(X_test, kernel_choice, kernel_parameter, num_fun):
     return f_prior(X_test, mu_prior, kernel_choice, kernel_parameter, num_fun)
 
 
-def prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter):
+def prediction(X_train, X_test, y_train, kernel_choice, l):
     s = 0.0005  # noise variance and zero mean for noise
+    l = 5
+    sigma = 5
+    log_marg_likelihood_old = 0
+    tolerance = 0.001
 
-    if kernel_choice == 'rbf':
-        K_train = RBF_kernel(X_train, X_train, kernel_parameter)
-        K_s = RBF_kernel(X_train, X_test, kernel_parameter)
-        K_ss = RBF_kernel(X_test, X_test, kernel_parameter)
-    if kernel_choice == 'lin':
-        K_train = lin_kernel(X_train, X_train, kernel_parameter)
-        K_s = lin_kernel(X_train, X_test, kernel_parameter)
-        K_ss = lin_kernel(X_test, X_test, kernel_parameter)
-    if kernel_choice == 'per':
-        K_train = per_kernel(X_train, X_train, kernel_parameter)
-        K_s = per_kernel(X_train, X_test, kernel_parameter)
-        K_ss = per_kernel(X_test, X_test, kernel_parameter)
+    for i in range(10000):
+        if kernel_choice == 'rbf':
+            K_train = RBF_kernel(X_train, X_train, sigma, l)
+            K_s = RBF_kernel(X_train, X_test, sigma, l)
+            K_ss = RBF_kernel(X_test, X_test, sigma, l)
+        if kernel_choice == 'lin':
+            K_train = lin_kernel(X_train, X_train, l)
+            K_s = lin_kernel(X_train, X_test, l)
+            K_ss = lin_kernel(X_test, X_test, l)
+        if kernel_choice == 'per':
+            K_train = per_kernel(X_train, X_train, l)
+            K_s = per_kernel(X_train, X_test, l)
+            K_ss = per_kernel(X_test, X_test, l)
 
-    L = np.linalg.cholesky(K_train + s * np.eye(N))
-    m = np.linalg.solve(L, y_train)
-    alpha = np.linalg.solve(L.T, m)
+        L = np.linalg.cholesky(K_train + s * np.eye(N))
+        m = np.linalg.solve(L, y_train)
+        alpha = np.linalg.solve(L.T, m)
 
-    # compute mean of test points for posterior
-    mu_post = np.dot(K_s.T, alpha)
-    v = np.linalg.solve(L, K_s)
+        # compute mean of test points for posterior
+        mu_post = np.dot(K_s.T, alpha)
+        v = np.linalg.solve(L, K_s)
 
-    # compute variance for test points
-    var_test = np.diag(K_ss) - np.sum(v ** 2, axis=0)
-    stand_devi = np.sqrt(var_test)
-    #print stand_devi
+        # compute variance for test points
+        var_test = np.diag(K_ss) - np.sum(v ** 2, axis=0)
+        stand_devi = np.sqrt(var_test)
+        #print stand_devi
 
+        # compute log marginal likelihood
+        log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n/2 * np.log(2*np.pi)
+
+        # tune the hyperparameters for RBF kernel
+        K_y_inv = np.dot(np.linalg.inv(L.T), np.linalg.inv(L))
+        sigma, l = tune_hyperparms(X_train, X_train, sigma, l, alpha.reshape(-1,1), K_y_inv)
+
+        error = np.sqrt(np.sum((log_marg_likelihood - log_marg_likelihood_old)**2))
+        log_marg_likelihood_old = log_marg_likelihood
+        if error <= tolerance:
+            print "The hyperparameter tuning function has already converged after " + `i+1` + " iterations!"
+            print "The error is " + `error`
+            print "training end!"
+            break
+
+    print sigma, l
     # sample from test points
     L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
     f_post_fun = mu_post.reshape(-1, 1) + np.dot(L_, np.random.normal(size=(n, num_fun)))
@@ -220,7 +263,6 @@ def plot_posterior(X_test, f_post_fun, mu_post, stand_devi):
     :return:
     """
     plt.subplot(4, 2, 5)
-    print mu_post - 3 * stand_devi
     plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
     plt.plot(X_test, f_post_fun)
     plt.plot(X_test, mu_post, 'r--', lw=2)
@@ -277,9 +319,10 @@ if __name__ == "__main__":
 
     # hyper-parameters
     num_fun = 10          # number of prior function
-    kernel_parameter = [1, 1]  # parameter for kernel
+    #kernel_parameter = [1, 1]  # parameter for kernel per
+    kernel_parameter = 1
     kernel_stand_deiv = 1 # standard deviation for kernel
-    kernel_choice = 'per' # can be 'rbf', 'per', 'lin'
+    kernel_choice = 'rbf' # can be 'rbf', 'per', 'lin'
 
     # generate dataset for GP regression
     true_fun, X_train, y_train, X_test = dataset_generator()
