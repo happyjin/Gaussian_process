@@ -20,9 +20,19 @@ def RBF_kernel(a, b, sigma, l):
 
 
 def tune_hyperparms(a, b, sigma, l, alpha, K_y):
+    """
+    tune hyperparameters sigma and l for RBF kernel
+    :param a: input vector a
+    :param b: input vector b
+    :param sigma: output variance determines the average distance of your function away from its mean
+    :param l: lengthscale determines the length of the 'wiggles' in your function.
+    :param alpha: equals to K_inv * y
+    :param K_y: K_inv
+    :return: current sigmal and l
+    """
     step_size = 0.01
-
     sqdist = ((a[:, :, None] - b[:, :, None].T) ** 2).sum(1)
+
     # tune hyperparameter sigma
     sigma_grad = 2 * sigma * np.exp(-.5*sqdist/(l**2))
     sigma_matrix = np.dot(np.dot(alpha, alpha.T) - K_y, sigma_grad)
@@ -129,8 +139,8 @@ def prior_process(X_test, kernel_choice, kernel_parameter, num_fun):
 
 def prediction(X_train, X_test, y_train, kernel_choice, l):
     s = 0.0005  # noise variance and zero mean for noise
-    l = 5
-    sigma = 5
+    l = 2
+    sigma = 3
     log_marg_likelihood_old = 0
     tolerance = 0.001
 
@@ -164,6 +174,7 @@ def prediction(X_train, X_test, y_train, kernel_choice, l):
         # compute log marginal likelihood
         log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n/2 * np.log(2*np.pi)
 
+
         # tune the hyperparameters for RBF kernel
         K_y_inv = np.dot(np.linalg.inv(L.T), np.linalg.inv(L))
         sigma, l = tune_hyperparms(X_train, X_train, sigma, l, alpha.reshape(-1,1), K_y_inv)
@@ -175,6 +186,9 @@ def prediction(X_train, X_test, y_train, kernel_choice, l):
             print "The error is " + `error`
             print "training end!"
             break
+
+
+
 
     print sigma, l
     # sample from test points
