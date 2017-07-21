@@ -131,26 +131,53 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
             print "training end!"
             break
 
+    optimal_likelihood = log_marg_likelihood
     print 'optimal lenghscalar is: ' + `l`
-    print 'maximum log marginal likelihood is: ' + `log_marg_likelihood`
+    print 'maximum log marginal likelihood is: ' + `optimal_likelihood`
     # sample from test points, in other words, make prediction
     L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
     f_post_fun = mu_post.reshape(-1, 1) + np.dot(L_, np.random.normal(size=(n, num_fun)))
     plt.axis([-5, 5, -3, 3])
-    return mu_post, stand_devi, f_post_fun
+    return mu_post, stand_devi, f_post_fun, optimal_likelihood
 
-
-def acquisition_fun(params, means, stand_devi, parms_done, y):
-    s = 0.0001 # small value
+def EI(params, means, stand_devi, parms_done, y):
+    s = 0.0005  # small value
+    stop_threshold = 0.001
     max_mean = np.max(y)
     f_max = max_mean + s
     variables = (means - f_max) / stand_devi
     cumu_gaussian = norm.cdf(variables)
+    # early stop criterion, if there are less than 1% to get the greater cumulative Gaussian, then stop.
+    if cumu_gaussian.sum() <= stop_threshold or np.max(cumu_gaussian) <= stop_threshold:
+        print "all elements of cumulative are alost zeros!!!"
+        return True
     indices = np.where(cumu_gaussian == np.max(cumu_gaussian))[0]
     indices = np.asarray(indices)
-    # since there are several 1, random pick one of them as the next point except for parms_done. e.g. the last one
+    # since there are several 1, random pick one of them as the next point except for parms_done
     rand_index = random.randint(0, len(indices) - 1)
     next_point = params[indices[rand_index]]
+    condition = next_point in parms_done.tolist()
+    # early stop criterion, if there is no other point that can maximize the objective then stop
+    while condition:
+        rand_index = random.randint(0, len(indices) - 1)
+        next_point = params[indices[rand_index]]
+        condition = next_point in parms_done.tolist()
+        if len(next_point) == 1 and condition:
+            return True
+    return next_point
+
+
+def UCB(params, means, stand_devi, parms_done, y):
+    kappa = 0.5
+    objective = means + kappa * stand_devi
+    indices = np.where(objective == np.max(objective))[0]
+    indices = np.asarray(indices)
+
+
+
+def acquisition_fun(params, means, stand_devi, parms_done, y):
+    next_point = EI(params, means, stand_devi, parms_done, y)
+    #next_point = UCB(params, means, stand_devi, parms_done, y)
     return next_point
 
 
@@ -178,13 +205,12 @@ def posterior_prediction(X_train, X_test, y_train, sigma, l):
     return log_marg_likelihood
 
 def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
-
     s = 0  # noise variance and zero mean for noise
     log_marg_likelihood = np.zeros(len(l))
     itrations = len(l)
     l_test = np.linspace(0.01, 5, n).reshape(-1, 1)
 
-    for k in range(10):
+    for k in range(300):
         log_marg_likelihood = np.zeros(len(l))
         for i in range(len(l)):
             log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
@@ -193,23 +219,26 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
         mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1,1), l_test, log_marg_likelihood)
         # determine the next training point using acquisition function
         next_point = acquisition_fun(l_test, mu_post, stand_devi, l, log_marg_likelihood)
+        if next_point is True:
+            max_index = np.where(log_marg_likelihood == np.max(log_marg_likelihood))[0]
+            print "it takes " + `k+1` + " iterations to get the optimal!"
+            print "optimal lenghscalar is:" + `l[max_index][0]`
+            break
         l = np.append(l, next_point)
-        #print np.max(log_marg_likelihood)
         max_index = np.where(log_marg_likelihood == np.max(log_marg_likelihood))[0]
-        #print l[max_index][0]
+        #print "maximum parameters is:" + `l[max_index][0]`
         #print ""
 
     log_marg_likelihood = np.zeros(len(l))
     for i in range(len(l)):
         log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
 
-    print np.max(log_marg_likelihood)
-    max_index = np.where(log_marg_likelihood == np.max(log_marg_likelihood))[0]
-    print l[max_index][0]
+    print "maximum likelihood is:" + `np.max(log_marg_likelihood)`
     # Bayesian optimization for hyperparameters
     mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1, 1), l_test, log_marg_likelihood)
     # plot Bayesian optimization
-    plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
+    #plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
+    return np.max(log_marg_likelihood)
 
 
 def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
@@ -224,11 +253,12 @@ def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
     sigma = 1 # fix the output variance of RBF kernel
     l = 5  # initial hyperparm
     # tune hyperparameters of RBF kernel in the regression using gradient ascent
-    mu_post, stand_devi, f_post_fun = tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l)
+    mu_post, stand_devi, f_post_fun, optimal_likelihood = tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l)
     # plot posterior functions
     plot_posterior(X_test, f_post_fun, mu_post, stand_devi)
     # plot true function and difference between true function and posterior prediction
     plot_true_diff(X_train, X_test, y_train, true_fun, mu_post, stand_devi)
+    return optimal_likelihood
 
 
 def tune_hyperparms_BO(X_train, X_test, y_train, num_fun):
@@ -236,7 +266,8 @@ def tune_hyperparms_BO(X_train, X_test, y_train, num_fun):
     # random pick up two initial hyperparm
     l = np.random.uniform(0,5,2) # np.array([0.5, 3.5])
     # tune hyperparameters of RBF kernel in regression using Bayesian optimization
-    tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l)
+    optimal_likelihood = tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l)
+    return optimal_likelihood
 
 
 if __name__ == "__main__":
@@ -248,10 +279,24 @@ if __name__ == "__main__":
     # generate dataset for GP regression
     true_fun, X_train, y_train, X_test = dataset_generator(N, n)
 
-    # using gradient ascent to maximize log marginal likelihood in order to tune the hyperparameters
-    #tune_hyperparms_gradient(X_train, X_test, y_train, num_fun)
-
     # using Bayesian optimization in order to tune the hyperparameters
-    tune_hyperparms_BO(X_train, X_test, y_train, num_fun)
+    print ""
+    print "------ Bayesian oprimization ------"
+    optimal_likelihood_BO = tune_hyperparms_BO(X_train, X_test, y_train, num_fun)
+
+    # using gradient ascent to maximize log marginal likelihood in order to tune the hyperparameters
+    print ""
+    print "------ gradient ascent------"
+    optimal_likelihood_GA = tune_hyperparms_gradient(X_train, X_test, y_train, num_fun)
+
+    # the difference between result of Bayesian optimization and gradient ascent
+    error = np.abs(optimal_likelihood_BO - optimal_likelihood_GA) / \
+            np.abs(max(optimal_likelihood_BO, optimal_likelihood_GA))
+    error_rate = error*100
+    print ""
+    print "------ error rate ------"
+    print("The error rate of optimal likelihood between two methods is: %.3f%%" % error_rate)
+
+
 
     #plt.show()
