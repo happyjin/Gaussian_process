@@ -8,14 +8,12 @@ np.set_printoptions(precision=3, suppress=True)
 
 
 def plot_BO(X_train, y_train, X_test, f_post_fun, mu_post, stand_devi):
-    #print f_post_fun
-    print mu_post.shape
-    print X_test.shape
     plt.clf()
     plt.plot(X_train, y_train, 'r+', ms=20)
     plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
-    plt.plot(X_test, f_post_fun)
-    plt.plot(X_test, mu_post, 'r--', lw=2)
+    #plt.plot(X_test, f_post_fun)
+    #plt.plot(X_test, mu_post, 'r--', lw=2)
+    plt.plot(X_test, mu_post, linewidth=1)
     plt.title('Bayesian Optimization')
     plt.show()
 
@@ -57,7 +55,7 @@ def gradient_ascent(a, b, sigma, l, alpha, K_y):
 
 
 def bayesian_opt(X_train, X_test, y_train):
-    s = 0  # noise variance and zero mean for noise
+    s = 0.0001  # noise variance and zero mean for noise
     n = 100 # number of test points
     N = len(X_train) # number of training points
     num_fun = 1
@@ -143,17 +141,16 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
 
 
 def acquisition_fun(params, means, stand_devi, parms_done, y):
-    s = 0.001 # small value
+    s = 0.0001 # small value
     max_mean = np.max(y)
     f_max = max_mean + s
     variables = (means - f_max) / stand_devi
     cumu_gaussian = norm.cdf(variables)
     indices = np.where(cumu_gaussian == np.max(cumu_gaussian))[0]
     indices = np.asarray(indices)
-    #print cumu_gaussian
     # since there are several 1, random pick one of them as the next point except for parms_done. e.g. the last one
     rand_index = random.randint(0, len(indices) - 1)
-    next_point = rand_index
+    next_point = params[indices[rand_index]]
     return next_point
 
 
@@ -182,28 +179,37 @@ def posterior_prediction(X_train, X_test, y_train, sigma, l):
 
 def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
 
-    s = 0.0005  # noise variance and zero mean for noise
+    s = 0  # noise variance and zero mean for noise
     log_marg_likelihood = np.zeros(len(l))
     itrations = len(l)
     l_test = np.linspace(0.01, 5, n).reshape(-1, 1)
 
-
-    for k in range(1):
+    for k in range(10):
+        log_marg_likelihood = np.zeros(len(l))
         for i in range(len(l)):
             log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
 
-        # Bayesian optimization
+        # Bayesian optimization for hyperparameters
         mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1,1), l_test, log_marg_likelihood)
-        #print mu_post
         # determine the next training point using acquisition function
         next_point = acquisition_fun(l_test, mu_post, stand_devi, l, log_marg_likelihood)
-        next_likelihood = posterior_prediction(X_train, X_test, y_train, sigma, next_point)
         l = np.append(l, next_point)
-        log_marg_likelihood = np.append(log_marg_likelihood, next_likelihood)
+        #print np.max(log_marg_likelihood)
+        max_index = np.where(log_marg_likelihood == np.max(log_marg_likelihood))[0]
+        #print l[max_index][0]
+        #print ""
 
+    log_marg_likelihood = np.zeros(len(l))
+    for i in range(len(l)):
+        log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
 
+    print np.max(log_marg_likelihood)
+    max_index = np.where(log_marg_likelihood == np.max(log_marg_likelihood))[0]
+    print l[max_index][0]
+    # Bayesian optimization for hyperparameters
+    mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1, 1), l_test, log_marg_likelihood)
     # plot Bayesian optimization
-    #plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
+    plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
 
 
 def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
@@ -228,7 +234,7 @@ def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
 def tune_hyperparms_BO(X_train, X_test, y_train, num_fun):
     sigma = 1 # fix the output variance of RBF kernel
     # random pick up two initial hyperparm
-    l = np.array([0.5, 3.3])# np.random.uniform(0,5,2)
+    l = np.random.uniform(0,5,2) # np.array([0.5, 3.5])
     # tune hyperparameters of RBF kernel in regression using Bayesian optimization
     tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l)
 
