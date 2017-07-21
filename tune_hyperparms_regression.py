@@ -1,8 +1,23 @@
 from __future__ import division
 from GP_regression import dataset_generator, RBF_kernel, plot_posterior, plot_true_diff
+from scipy.stats import norm
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 np.set_printoptions(precision=3, suppress=True)
+
+
+def plot_BO(X_train, y_train, X_test, f_post_fun, mu_post, stand_devi):
+    #print f_post_fun
+    print mu_post.shape
+    print X_test.shape
+    plt.clf()
+    plt.plot(X_train, y_train, 'r+', ms=20)
+    plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
+    plt.plot(X_test, f_post_fun)
+    plt.plot(X_test, mu_post, 'r--', lw=2)
+    plt.title('Bayesian Optimization')
+    plt.show()
 
 
 def gradient_ascent(a, b, sigma, l, alpha, K_y):
@@ -41,10 +56,34 @@ def gradient_ascent(a, b, sigma, l, alpha, K_y):
     return sigma, l
 
 
-def bayesian_opt(X, y):
-    s = 0.0005  # noise variance and zero mean for noise
+def bayesian_opt(X_train, X_test, y_train):
+    s = 0  # noise variance and zero mean for noise
+    n = 100 # number of test points
+    N = len(X_train) # number of training points
+    num_fun = 1
+    #print X_test
 
+    K = RBF_kernel(X_train, X_train, 1, 1)
+    K_s = RBF_kernel(X_train, X_test, 1, 1)
+    K_ss = RBF_kernel(X_test, X_test, 1, 1)
 
+    L = np.linalg.cholesky(K + s * np.eye(N))
+    m = np.linalg.solve(L, y_train)
+    alpha = np.linalg.solve(L.T, m)
+
+    # compute mean of test points for posterior
+    mu_post = np.dot(K_s.T, alpha)
+    v = np.linalg.solve(L, K_s)
+
+    # compute variance for test points
+    var_test = np.diag(K_ss) - np.sum(v ** 2, axis=0)
+    stand_devi = np.sqrt(var_test)
+
+    # sample from test points, in other words, make prediction
+    L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
+    f_post_fun = mu_post.reshape(-1, 1) + np.dot(L_, np.random.normal(size=(n, num_fun)))
+    #plot_BO(X_train, y_train, X_test, f_post_fun, mu_post, stand_devi)
+    return mu_post, stand_devi, f_post_fun
 
 def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
     """
@@ -94,7 +133,8 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
             print "training end!"
             break
 
-    print sigma, l
+    print 'optimal lenghscalar is: ' + `l`
+    print 'maximum log marginal likelihood is: ' + `log_marg_likelihood`
     # sample from test points, in other words, make prediction
     L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
     f_post_fun = mu_post.reshape(-1, 1) + np.dot(L_, np.random.normal(size=(n, num_fun)))
@@ -102,33 +142,69 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
     return mu_post, stand_devi, f_post_fun
 
 
-def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
+def acquisition_fun(params, means, stand_devi, parms_done, y):
+    s = 0.001 # small value
+    max_mean = np.max(y)
+    f_max = max_mean + s
+    variables = (means - f_max) / stand_devi
+    cumu_gaussian = norm.cdf(variables)
+    indices = np.where(cumu_gaussian == np.max(cumu_gaussian))[0]
+    indices = np.asarray(indices)
+    #print cumu_gaussian
+    # since there are several 1, random pick one of them as the next point except for parms_done. e.g. the last one
+    rand_index = random.randint(0, len(indices) - 1)
+    next_point = rand_index
+    return next_point
+
+
+def posterior_prediction(X_train, X_test, y_train, sigma, l):
     s = 0.0005  # noise variance and zero mean for noise
+    # choose RBF kernel in this regression case
+    K_train = RBF_kernel(X_train, X_train, sigma, l)
+    K_s = RBF_kernel(X_train, X_test, sigma, l)
+    K_ss = RBF_kernel(X_test, X_test, sigma, l)
 
-    for i in range(len(l)):
-        log_marg_likelihood = np.zeros(len(l))
-        # choose RBF kernel in this regression case
-        K_train = RBF_kernel(X_train, X_train, sigma, l[i])
-        K_s = RBF_kernel(X_train, X_test, sigma, l[i])
-        K_ss = RBF_kernel(X_test, X_test, sigma, l[i])
+    L = np.linalg.cholesky(K_train + s * np.eye(N))
+    m = np.linalg.solve(L, y_train)
+    alpha = np.linalg.solve(L.T, m)
 
-        L = np.linalg.cholesky(K_train + s * np.eye(N))
-        m = np.linalg.solve(L, y_train)
-        alpha = np.linalg.solve(L.T, m)
+    # compute mean of test points for posterior
+    mu_post = np.dot(K_s.T, alpha)
+    v = np.linalg.solve(L, K_s)
 
-        # compute mean of test points for posterior
-        mu_post = np.dot(K_s.T, alpha)
-        v = np.linalg.solve(L, K_s)
+    # compute variance for test points
+    var_test = np.diag(K_ss) - np.sum(v ** 2, axis=0)
+    stand_devi = np.sqrt(var_test)
 
-        # compute variance for test points
-        var_test = np.diag(K_ss) - np.sum(v ** 2, axis=0)
-        stand_devi = np.sqrt(var_test)
+    # compute log marginal likelihood
+    log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n / 2 * np.log(2 * np.pi)
+    return log_marg_likelihood
 
-        # compute log marginal likelihood
-        log_marg_likelihood[i] = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n / 2 * np.log(2 * np.pi)
+def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
+
+    s = 0.0005  # noise variance and zero mean for noise
+    log_marg_likelihood = np.zeros(len(l))
+    itrations = len(l)
+    l_test = np.linspace(0.01, 5, n).reshape(-1, 1)
+
+
+    for k in range(1):
+        for i in range(len(l)):
+            log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
 
         # Bayesian optimization
-        bayesian_opt(l, log_marg_likelihood)
+        mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1,1), l_test, log_marg_likelihood)
+        #print mu_post
+        # determine the next training point using acquisition function
+        next_point = acquisition_fun(l_test, mu_post, stand_devi, l, log_marg_likelihood)
+        next_likelihood = posterior_prediction(X_train, X_test, y_train, sigma, next_point)
+        l = np.append(l, next_point)
+        log_marg_likelihood = np.append(log_marg_likelihood, next_likelihood)
+
+
+    # plot Bayesian optimization
+    #plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
+
 
 def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
     """
@@ -152,7 +228,7 @@ def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
 def tune_hyperparms_BO(X_train, X_test, y_train, num_fun):
     sigma = 1 # fix the output variance of RBF kernel
     # random pick up two initial hyperparm
-    l = np.array([1.7, 3.3])#np.random.uniform(0.1,5,2)
+    l = np.array([0.5, 3.3])# np.random.uniform(0,5,2)
     # tune hyperparameters of RBF kernel in regression using Bayesian optimization
     tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l)
 
@@ -172,4 +248,4 @@ if __name__ == "__main__":
     # using Bayesian optimization in order to tune the hyperparameters
     tune_hyperparms_BO(X_train, X_test, y_train, num_fun)
 
-    plt.show()
+    #plt.show()
