@@ -1,9 +1,8 @@
 from __future__ import division
-from GP_regression import dataset_generator, RBF_kernel, plot_posterior, plot_true_diff
+from GP_regression import dataset_generator, RBF_kernel, plot_posterior, plot_true_diff, prediction
 from scipy.stats import norm
 import random
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 np.set_printoptions(precision=3, suppress=True)
 
@@ -147,6 +146,7 @@ def PI(params, means, stand_devi, parms_done, y):
     s = 0.0005  # small value
     stop_threshold = 0.001
     max_mean = np.max(y)
+
     f_max = max_mean + s
     variables = (means - f_max) / stand_devi
     cumu_gaussian = norm.cdf(variables)
@@ -170,7 +170,7 @@ def PI(params, means, stand_devi, parms_done, y):
     return next_point
 
 
-def UCB(params, means, stand_devi, parms_done, y):
+def UCB(params, means, stand_devi, parms_done):
     num_parms = len(parms_done)
     kappa = 7
 
@@ -184,23 +184,40 @@ def UCB(params, means, stand_devi, parms_done, y):
     return next_point
 
 
-def TS(params, means, stand_devi, parms_done, y):
-    bayesian_opt(X_train, X_test, y_train)
+def TS(parms_done, params, y):
+    """
+
+    :param parms_done: X_train
+    :param params: X_test
+    :param y: y_train
+    :return: next point
+    """
+    num_fun = 1
+    mu_post, stand_devi, f_post_fun = prediction(parms_done.reshape(-1, 1), params, y, 'rbf', 1, num_fun)
+    max_post_fun = np.max(f_post_fun)
+    max_index = np.where(f_post_fun == max_post_fun)
+    next_point = params[max_index]
+    return next_point
+
+
 
 
 def acquisition_fun(params, means, stand_devi, parms_done, y):
-    next_point = PI(params, means, stand_devi, parms_done, y)
-    #next_point = UCB(params, means, stand_devi, parms_done, y)
+    #next_point = PI(params, means, stand_devi, parms_done, y)
+    #next_point = UCB(params, means, stand_devi, parms_done)
+    next_point = TS(parms_done, params, y)
     return next_point
 
 
 def posterior_prediction(X_train, X_test, y_train, sigma, l):
     s = 0.0005  # noise variance and zero mean for noise
+    N = len(X_train)
+    n = len(X_test)
+
     # choose RBF kernel in this regression case
     K_train = RBF_kernel(X_train, X_train, sigma, l)
     K_s = RBF_kernel(X_train, X_test, sigma, l)
     K_ss = RBF_kernel(X_test, X_test, sigma, l)
-
     L = np.linalg.cholesky(K_train + s * np.eye(N))
     m = np.linalg.solve(L, y_train)
     alpha = np.linalg.solve(L.T, m)
@@ -246,20 +263,19 @@ def random_gen_test_parms(n, parms_done):
 
 
 def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
-    s = 0  # noise variance and zero mean for noise
     n = 100 # number of test points
 
-    for k in range(10):
+    for k in range(1):
         # randomly generate test hyperparms except for hyperparms that have already choosed
         l_test = random_gen_test_parms(n, l)
         log_marg_likelihood = np.zeros(len(l))
         for i in range(len(l)):
             log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
-
         # Bayesian optimization for hyperparameters
         mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1,1), l_test, log_marg_likelihood)
         # determine the next training point using acquisition function
         next_point = acquisition_fun(l_test, mu_post, stand_devi, l, log_marg_likelihood)
+        # if get early stop criterion then stop and output optimal result
         if next_point is True:
             max_index = np.where(log_marg_likelihood == np.max(log_marg_likelihood))[0]
             print "it takes " + `k+1` + " iterations to get the optimal!"
@@ -271,15 +287,14 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
     log_marg_likelihood = np.zeros(len(l))
     for i in range(len(l)):
         log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
-
-    print "it takes " + `k` + " iterations to get the optimal!"
+    print "it takes " + `k+1` + " iterations to get the optimal!"
     print "optimal lenghscalar is:" + `l[max_index][0]`
     print "maximum likelihood is:" + `np.max(log_marg_likelihood)`
     # Bayesian optimization for hyperparameters
     l_test = random_gen_test_parms(n, l)
     mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1, 1), l_test, log_marg_likelihood)
     # plot Bayesian optimization
-    plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
+    #plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
     return np.max(log_marg_likelihood)
 
 
@@ -338,5 +353,3 @@ if __name__ == "__main__":
     print ""
     print "------ error rate ------"
     print("The error rate of optimal likelihood between two methods is: %.3f%%" % error_rate)
-
-    #plt.show()
