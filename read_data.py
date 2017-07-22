@@ -2,7 +2,6 @@ import pickle
 import re
 import os.path
 import numpy as np
-#import deepdish as dd
 
 def save_data(file):
     """
@@ -64,6 +63,7 @@ def save_data_narray(data_list):
     if not os.path.isfile(save_name):
         np.save(save_name, data_list)
     return data_list
+
 
 if __name__ == "__main__":
     file = "data.txt"
