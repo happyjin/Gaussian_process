@@ -106,9 +106,11 @@ def prior_process(X_test, kernel_choice, kernel_parameter, num_fun):
     return f_prior(X_test, mu_prior, kernel_choice, kernel_parameter, num_fun)
 
 
-def prediction(X_train, X_test, y_train, kernel_choice, l):
+def prediction(X_train, X_test, y_train, kernel_choice, l, num_fun):
     s = 0.0005  # noise variance and zero mean for noise
     sigma = 1
+    N = len(X_train)
+    n = len(X_test)
 
     if kernel_choice == 'rbf':
         K_train = RBF_kernel(X_train, X_train, sigma, l)
@@ -260,7 +262,7 @@ def GP_regression(X_train, y_train, X_test, num_fun, kernel_choice, kernel_param
     plot_prior(X_test, f_prior_fun, kernel_stand_deiv)
 
     # make prediction for test data by posterior
-    mu_post, stand_devi, f_post_fun = prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter)
+    mu_post, stand_devi, f_post_fun = prediction(X_train, X_test, y_train, kernel_choice, kernel_parameter, num_fun)
 
     # plot posterior functions
     plot_posterior(X_test, f_post_fun, mu_post, stand_devi)
