@@ -148,8 +148,8 @@ def PI(params, means, stand_devi, parms_done, y):
     max_mean = np.max(y)
 
     f_max = max_mean + s
-    variables = (means - f_max) / stand_devi
-    cumu_gaussian = norm.cdf(variables)
+    z = (means - f_max) / stand_devi
+    cumu_gaussian = norm.cdf(z)
     # early stop criterion, if there are less than 1% to get the greater cumulative Gaussian, then stop.
     if cumu_gaussian.sum() <= stop_threshold or np.max(cumu_gaussian) <= stop_threshold:
         print "all elements of cumulative are alost zeros!!!"
@@ -200,12 +200,22 @@ def TS(parms_done, params, y):
     return next_point
 
 
+def EI(params, means, stand_devi, parms_done, y):
+    s = 0.0005  # small value
+    max_mean = np.max(y)
 
+    f_max = max_mean + s
+    z = (means - f_max) / stand_devi
+    EI_vector = (means - f_max) * norm.cdf(z) + stand_devi * norm.pdf(z)
+    max_index = np.where(EI_vector == np.max(EI_vector))
+    next_point = params[max_index]
+    return next_point
 
 def acquisition_fun(params, means, stand_devi, parms_done, y):
     #next_point = PI(params, means, stand_devi, parms_done, y)
     #next_point = UCB(params, means, stand_devi, parms_done)
-    next_point = TS(parms_done, params, y)
+    #next_point = TS(parms_done, params, y)
+    next_point = EI(params, means, stand_devi, parms_done, y)
     return next_point
 
 
@@ -265,7 +275,7 @@ def random_gen_test_parms(n, parms_done):
 def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
     n = 100 # number of test points
 
-    for k in range(1):
+    for k in range(20):
         # randomly generate test hyperparms except for hyperparms that have already choosed
         l_test = random_gen_test_parms(n, l)
         log_marg_likelihood = np.zeros(len(l))
