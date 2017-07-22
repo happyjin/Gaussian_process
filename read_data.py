@@ -3,25 +3,6 @@ import re
 import os.path
 import numpy as np
 
-def save_data(file):
-    """
-    save data
-    :param file: file name
-    :return:
-    """
-    # read data
-    data = []
-    fp = open(file)
-    for i, line in enumerate(fp):
-        if i >= 15 and i <= 65:
-            print line
-            data.append(line)
-    fp.close()
-    # save data
-    with open('CO2_data', 'wb') as fp:
-        pickle.dump(data, fp)
-
-
 def generate_data_list(itemlist):
     """
     convert str data list into float data list
@@ -65,12 +46,26 @@ def save_data_narray(data_list):
     return data_list
 
 
-if __name__ == "__main__":
-    file = "data.txt"
+def generate_CO2_data(data_name):
+    """
+    save data
+    :param file: file name
+    :return:
+    """
+    data = []
+    fp = open(data_name)
+    for i, line in enumerate(fp):
+        if i >= 15 and i <= 65:
+            data.append(line)
+    fp.close()
+    with open('CO2_data', 'wb') as fp:
+        pickle.dump(data, fp)
 
-    # if file not exists then create it
-    if not os.path.isfile(file):
-        save_data(file)
+
+if __name__ == "__main__":
+    # generate CO2 data
+    data_name = "data.txt"
+    generate_CO2_data(data_name)
 
     # load data
     data_name = 'CO2_data'
@@ -85,3 +80,4 @@ if __name__ == "__main__":
 
     # load data narray
     data_narray = np.load('data_list.npy')
+    print data_narray.shape
