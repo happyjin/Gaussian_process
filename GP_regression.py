@@ -108,7 +108,6 @@ def prior_process(X_test, kernel_choice, kernel_parameter, num_fun):
 
 def prediction(X_train, X_test, y_train, kernel_choice, l):
     s = 0.0005  # noise variance and zero mean for noise
-    l = 1
     sigma = 1
 
     if kernel_choice == 'rbf':
@@ -142,7 +141,6 @@ def prediction(X_train, X_test, y_train, kernel_choice, l):
     # sample from test points
     L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
     f_post_fun = mu_post.reshape(-1, 1) + np.dot(L_, np.random.normal(size=(n, num_fun)))
-    plt.axis([-5, 5, -3, 3])
     return mu_post, stand_devi, f_post_fun
 
 
