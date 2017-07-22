@@ -352,7 +352,7 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
     """
     n = 100 # number of test points
 
-    for k in range(20):
+    for k in range(15):
         # randomly generate test hyperparms except for hyperparms that have already choosed
         l_test = random_gen_test_parms(n, l)
         log_marg_likelihood = np.zeros(len(l))
@@ -381,7 +381,7 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
     l_test = random_gen_test_parms(n, l)
     mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1, 1), l_test, log_marg_likelihood)
     # plot Bayesian optimization
-    #plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
+    plot_BO(l.reshape(-1,1), log_marg_likelihood, l_test, f_post_fun, mu_post, stand_devi)
     return np.max(log_marg_likelihood)
 
 
