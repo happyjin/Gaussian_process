@@ -8,6 +8,16 @@ np.set_printoptions(precision=3, suppress=True)
 
 
 def plot_BO(X_train, y_train, X_test, f_post_fun, mu_post, stand_devi):
+    """
+    plot Bayesian optimization figure in order to visualize it
+    :param X_train: training data
+    :param y_train: training targets
+    :param X_test: test data
+    :param f_post_fun: GP posterior function
+    :param mu_post: mean of GP posterior function
+    :param stand_devi: standard deviation
+    :return:
+    """
     plt.clf()
     plt.plot(X_train, y_train, 'r+', ms=20)
     plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
@@ -55,6 +65,13 @@ def gradient_ascent(a, b, sigma, l, alpha, K_y):
 
 
 def bayesian_opt(X_train, X_test, y_train):
+    """
+    compute current GP for Bayesian optimization
+    :param X_train: training data
+    :param X_test: test data
+    :param y_train: training targets
+    :return: mean of GP posterior function, standard deviation, GP posterior function
+    """
     s = 0.0001  # noise variance and zero mean for noise
     n = 100 # number of test points
     N = len(X_train) # number of training points
@@ -143,6 +160,15 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
 
 
 def PI(params, means, stand_devi, parms_done, y):
+    """
+    Probability of Improvement acquisition function
+    :param params: test data
+    :param means: GP posterior mean
+    :param stand_devi: standard deviation
+    :param parms_done: training data
+    :param y: training targets
+    :return: next point that need to pick up
+    """
     s = 0.0005  # small value
     stop_threshold = 0.001
     max_mean = np.max(y)
@@ -171,6 +197,14 @@ def PI(params, means, stand_devi, parms_done, y):
 
 
 def UCB(params, means, stand_devi, parms_done):
+    """
+    Upper Confidence Bound acquisition function
+    :param params: test data
+    :param means: GP posterior mean
+    :param stand_devi: standard deviation
+    :param parms_done: training data
+    :return: next point that need to pick up
+    """
     num_parms = len(parms_done)
     kappa = 7
 
@@ -186,11 +220,11 @@ def UCB(params, means, stand_devi, parms_done):
 
 def TS(parms_done, params, y):
     """
-
-    :param parms_done: X_train
-    :param params: X_test
-    :param y: y_train
-    :return: next point
+    Thompson Sampling acquisition function
+    :param parms_done: training data
+    :param params: test data
+    :param y: training targets
+    :return: next point that need to pick up
     """
     num_fun = 1
     mu_post, stand_devi, f_post_fun = prediction(parms_done.reshape(-1, 1), params, y, 'rbf', 1, num_fun)
@@ -201,6 +235,15 @@ def TS(parms_done, params, y):
 
 
 def EI(params, means, stand_devi, parms_done, y):
+    """
+    Expected Improvement acquisition function
+    :param params: test data
+    :param means: GP posterior mean
+    :param stand_devi: standard deviation
+    :param parms_done: training data
+    :param y: training targets
+    :return: next point that need to pick up
+    """
     s = 0.0005  # small value
     max_mean = np.max(y)
 
@@ -212,6 +255,15 @@ def EI(params, means, stand_devi, parms_done, y):
     return next_point
 
 def acquisition_fun(params, means, stand_devi, parms_done, y):
+    """
+    different acquisition functions
+    :param params: test data
+    :param means: GP posterior mean
+    :param stand_devi: standard deviation
+    :param parms_done: training data
+    :param y: training targets
+    :return: next point that need to pick up
+    """
     #next_point = PI(params, means, stand_devi, parms_done, y)
     #next_point = UCB(params, means, stand_devi, parms_done)
     #next_point = TS(parms_done, params, y)
@@ -219,7 +271,16 @@ def acquisition_fun(params, means, stand_devi, parms_done, y):
     return next_point
 
 
-def posterior_prediction(X_train, X_test, y_train, sigma, l):
+def compute_mar_likelihood(X_train, X_test, y_train, sigma, l):
+    """
+    compute log marginal likelihood for tuning parameters using Bayesian optimization
+    :param X_train: training data
+    :param X_test: test data
+    :param y_train: training targets
+    :param sigma: output variance
+    :param l: lengthscalar
+    :return: log marginal likelihood
+    """
     s = 0.0005  # noise variance and zero mean for noise
     N = len(X_train)
     n = len(X_test)
@@ -261,6 +322,12 @@ def overlap(a, b):
     return ind_a,ind_b
 
 def random_gen_test_parms(n, parms_done):
+    """
+    randomly generate test hyperparameters
+    :param n: number of test hyperparameters you need
+    :param parms_done: hyperparms that have already chosen
+    :return: test hyperparameters
+    """
     num_gen = n + len(parms_done) + 10
     test_parms = np.linspace(0.01, 5, num_gen)
     # remove duplicates between training and test points and then sample from non-duplicates test points
@@ -273,6 +340,16 @@ def random_gen_test_parms(n, parms_done):
 
 
 def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
+    """
+    process of using Bayesian optimization to tune hyperparameters
+    :param X_train: training data
+    :param X_test: test data
+    :param y_train: training targets
+    :param num_fun: number of functions
+    :param sigma: output variance
+    :param l: lengthscalar
+    :return: maximal log marginal likelihood
+    """
     n = 100 # number of test points
 
     for k in range(20):
@@ -280,7 +357,7 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
         l_test = random_gen_test_parms(n, l)
         log_marg_likelihood = np.zeros(len(l))
         for i in range(len(l)):
-            log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
+            log_marg_likelihood[i] = compute_mar_likelihood(X_train, X_test, y_train, sigma, l[i])
         # Bayesian optimization for hyperparameters
         mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1,1), l_test, log_marg_likelihood)
         # determine the next training point using acquisition function
@@ -296,7 +373,7 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
 
     log_marg_likelihood = np.zeros(len(l))
     for i in range(len(l)):
-        log_marg_likelihood[i] = posterior_prediction(X_train, X_test, y_train, sigma, l[i])
+        log_marg_likelihood[i] = compute_mar_likelihood(X_train, X_test, y_train, sigma, l[i])
     print "it takes " + `k+1` + " iterations to get the optimal!"
     print "optimal lenghscalar is:" + `l[max_index][0]`
     print "maximum likelihood is:" + `np.max(log_marg_likelihood)`
@@ -315,7 +392,7 @@ def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
     :param X_test: test data
     :param y_train: training targets
     :param num_fun: number of functions
-    :return:
+    :return: maximal log marginal likelihood
     """
     sigma = 1 # fix the output variance of RBF kernel
     l = 5  # initial hyperparm
@@ -329,6 +406,14 @@ def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
 
 
 def tune_hyperparms_BO(X_train, X_test, y_train, num_fun):
+    """
+    initialization of tuning hyperparameters using Bayesian optimization
+    :param X_train:
+    :param X_test:
+    :param y_train:
+    :param num_fun:
+    :return:
+    """
     sigma = 1 # fix the output variance of RBF kernel
     # random pick up two initial hyperparm
     l = np.random.uniform(0,5,2) # np.array([0.5, 3.5])
