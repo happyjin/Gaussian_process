@@ -107,6 +107,16 @@ def prior_process(X_test, kernel_choice, kernel_parameter, num_fun):
 
 
 def prediction(X_train, X_test, y_train, kernel_choice, l, num_fun):
+    """
+    get GP posterior and make prediction, in other words, sample function from GP posterior distribution
+    :param X_train: training data
+    :param X_test: test data
+    :param y_train: training targets
+    :param kernel_choice: choice of kernel
+    :param l: hyperparameter
+    :param num_fun: number of sampling GP posterior functions
+    :return: mean of GP posterior function, standard deviation, GP posterior function
+    """
     s = 0.0005  # noise variance and zero mean for noise
     sigma = 1
     N = len(X_train)
@@ -178,6 +188,10 @@ def plot_lin_kernel():
 
 
 def plot_per_kernel():
+    """
+    plot for different kernels
+    :return:
+    """
     output_variance = 1
     p, l = np.array([1, 1])
     x_ = 3
@@ -252,6 +266,16 @@ def plot_true_diff(X_train, X_test, y_train, true_fun, mu_post, stand_devi):
 
 
 def GP_regression(X_train, y_train, X_test, num_fun, kernel_choice, kernel_parameter):
+    """
+    GP regression case
+    :param X_train: training data
+    :param y_train: training targets
+    :param X_test: test data
+    :param num_fun: number of sampling functions
+    :param kernel_choice: choice of kernel
+    :param kernel_parameter: hyperparameters
+    :return:
+    """
     # plot kernel function
     plot_kernel(kernel_choice)
 
@@ -274,7 +298,6 @@ def GP_regression(X_train, y_train, X_test, num_fun, kernel_choice, kernel_param
 
 
 if __name__ == "__main__":
-
     N = 5   # number of training points
     n = 100 # number of test points
 
