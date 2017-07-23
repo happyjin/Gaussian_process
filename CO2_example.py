@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 np.set_printoptions(precision=3, suppress=True)
 
-
 def kernel_1(sqdist, theta_1, theta_2):
     """
     the first kernel--the RBF kernel
@@ -61,6 +60,15 @@ def kernel_4(sqdist, theta_9, theta_10, theta_11):
     return theta_9**2 * item + theta_11**2 * delta
 
 
+def covariance_function(pos_data):
+    hyperparms = np.random.uniform(0, 5, 11)  # randomly initial hyperparmeters
+    sqdist = ((pos_data[:, :, None] - pos_data[:, :, None].T) ** 2).sum(1)
+    kernel = kernel_1(sqdist, hyperparms[0], hyperparms[1]) + \
+             kernel_2(pos_data, pos_data, hyperparms[2], hyperparms[3], hyperparms[4]) + \
+             kernel_3(sqdist, hyperparms[5], hyperparms[6], hyperparms[7]) + \
+             kernel_4(sqdist, hyperparms[8], hyperparms[9], hyperparms[10])
+    return kernel
+
 def get_pos_data(info):
     """
     remove outlier and get positive data
@@ -83,13 +91,19 @@ def plot_CO2(pos_data):
     x_axis = np.arange(num_data)
     # plot data
     plt.plot(x_axis, pos_data)
-    plt.show()
 
 
 if __name__ == "__main__":
     info = np.load('data_list.npy')
     # get positive data
     pos_data = get_pos_data(info)
+    pos_data = pos_data.reshape(-1,1)
+    print pos_data.shape
 
     # plot CO2
     plot_CO2(pos_data)
+    #plt.show()
+
+    # compute covariance function
+    kernel = covariance_function(pos_data)
+    print kernel.shape
