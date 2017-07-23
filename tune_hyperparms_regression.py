@@ -25,7 +25,7 @@ def plot_BO(X_train, y_train, X_test, f_post_fun, mu_post, stand_devi):
     #plt.plot(X_test, mu_post, 'r--', lw=2)
     plt.plot(X_test, mu_post, linewidth=1)
     plt.title('Bayesian Optimization')
-    plt.show()
+    #plt.show()
 
 
 def gradient_ascent(a, b, sigma, l, alpha, K_y):
@@ -150,7 +150,7 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
             break
 
     optimal_likelihood = log_marg_likelihood
-    print 'optimal lenghscalar is: ' + `l`
+    print 'optimal lenghscalar is: ' + `l[0]`
     print 'maximum log marginal likelihood is: ' + `optimal_likelihood`
     # sample from test points, in other words, make prediction
     L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
@@ -395,7 +395,7 @@ def tune_hyperparms_gradient(X_train, X_test, y_train, num_fun):
     :return: maximal log marginal likelihood
     """
     sigma = 1 # fix the output variance of RBF kernel
-    l = 5  # initial hyperparm
+    l = np.random.uniform(0, 5, 1)  # randomly initial hyperparmeters
     # tune hyperparameters of RBF kernel in the regression using gradient ascent
     mu_post, stand_devi, f_post_fun, optimal_likelihood = tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l)
     # plot posterior functions
