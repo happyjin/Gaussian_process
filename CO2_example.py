@@ -25,6 +25,7 @@ def plot_CO2(pos_data):
     x_axis = np.arange(num_data)
     # plot data
     plt.plot(x_axis, pos_data)
+    #plt.show()
 
 
 if __name__ == "__main__":
@@ -34,5 +35,3 @@ if __name__ == "__main__":
 
     # plot CO2
     plot_CO2(pos_data)
-
-    plt.show()
