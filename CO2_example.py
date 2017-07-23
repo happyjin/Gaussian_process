@@ -1,11 +1,22 @@
-from GP_regression import RBF_kernel
 import numpy as np
 import matplotlib.pyplot as plt
 np.set_printoptions(precision=3, suppress=True)
 
+
+def kernel_1(sqdist, theta_1, theta_2):
+    """
+    the first kernel--the RBF kernel
+    :param sqdist: input vector a
+    :param theta_1: input vector b
+    :param theta_2: lengthscale
+    :return: kernel matrix(covariance matrix)
+    """
+    return (theta_1 ** 2) * np.exp(-.5 * (1 / (theta_2 ** 2)) * sqdist)
+
+
 def kernel_2(a, b, theta_3, theta_4, theta_5):
     """
-    the second kernel
+    the second kernel--the modified periodic kernel
     :param a: the first input vector
     :param b: the second input vector
     :param theta_3: the magnitude
@@ -22,20 +33,33 @@ def kernel_2(a, b, theta_3, theta_4, theta_5):
     return theta_3 * np.exp(first_item + second_item)
 
 
-def kernel_3(a, b, theta_6, theta_7, theta_8):
+def kernel_3(sqdist, theta_6, theta_7, theta_8):
     """
-    the third kernel
-    :param a: the first input vector
-    :param b: the second input vector
+    the third kernel--the rational quadratic kernel in order to model the (small) medium term irregularities
+    :param sqdist: l2-norm square
     :param theta_6: the magnitude
     :param theta_7: the typical length-scale
     :param theta_8: the shape parameter
     :return: covariance matrix
     """
-    sqdist = ((a[:, :, None] - b[:, :, None].T) ** 2).sum(1)
     item = 1 + .5 * sqdist / (theta_8 * theta_7**2)
     part_kernel = 1.0 / np.power(item, theta_8)
     return theta_6**2 * part_kernel
+
+
+def kernel_4(sqdist, theta_9, theta_10, theta_11):
+    """
+    the forth kernel--a noise model
+    :param sqdist: l2-norm square
+    :param theta_9: the magnitude of the correlated noise component
+    :param theta_10: lengthscale
+    :param theta_11: the magnitude of the independent noise component
+    :return: covariance noise matrix
+    """
+    delta = 0.5
+    item = np.exp(-.5 * sqdist / theta_10**2)
+    return theta_9**2 * item + theta_11**2 * delta
+
 
 def get_pos_data(info):
     """
