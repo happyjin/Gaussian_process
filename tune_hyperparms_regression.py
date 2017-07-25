@@ -196,7 +196,7 @@ def PI(params, means, stand_devi, parms_done, y):
     return next_point
 
 
-def UCB(params, means, stand_devi, parms_done):
+def UCB(parms_done, params, means, stand_devi):
     """
     Upper Confidence Bound acquisition function
     :param params: test data
@@ -265,7 +265,7 @@ def acquisition_fun(params, means, stand_devi, parms_done, y):
     :return: next point that need to pick up
     """
     #next_point = PI(params, means, stand_devi, parms_done, y)
-    #next_point = UCB(params, means, stand_devi, parms_done)
+    #next_point = UCB(parms_done, params, means, stand_devi)
     #next_point = TS(parms_done, params, y)
     next_point = EI(params, means, stand_devi, parms_done, y)
     return next_point
