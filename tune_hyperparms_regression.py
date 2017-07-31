@@ -282,14 +282,13 @@ def compute_mar_likelihood(X_train, X_test, y_train, sigma, l):
     :return: log marginal likelihood
     """
     s = 0.0005  # noise variance and zero mean for noise
-    N = len(X_train)
-    n = len(X_test)
+    n = len(X_train)
 
     # choose RBF kernel in this regression case
     K_train = RBF_kernel(X_train, X_train, sigma, l)
     K_s = RBF_kernel(X_train, X_test, sigma, l)
     K_ss = RBF_kernel(X_test, X_test, sigma, l)
-    L = np.linalg.cholesky(K_train + s * np.eye(N))
+    L = np.linalg.cholesky(K_train + s * np.eye(n))
     m = np.linalg.solve(L, y_train)
     alpha = np.linalg.solve(L.T, m)
 
@@ -302,7 +301,7 @@ def compute_mar_likelihood(X_train, X_test, y_train, sigma, l):
     stand_devi = np.sqrt(var_test)
 
     # compute log marginal likelihood
-    log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n / 2 * np.log(2 * np.pi)
+    log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.log(np.diagonal(L)).sum(0) - n / 2.0 * np.log(2 * np.pi)
     return log_marg_likelihood
 
 
