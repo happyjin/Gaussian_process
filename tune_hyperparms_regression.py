@@ -18,14 +18,14 @@ def plot_BO(X_train, y_train, X_test, f_post_fun, mu_post, stand_devi):
     :param stand_devi: standard deviation
     :return:
     """
-    plt.clf()
+    plt.subplot(2, 1, 1)
     plt.plot(X_train, y_train, 'r+', ms=20)
     plt.gca().fill_between(X_test.flat, mu_post - 3 * stand_devi, mu_post + 3 * stand_devi, color="#dddddd")
     #plt.plot(X_test, f_post_fun)
     #plt.plot(X_test, mu_post, 'r--', lw=2)
     plt.plot(X_test, mu_post, linewidth=1)
     plt.title('Bayesian Optimization')
-    #plt.show()
+    plt.show()
 
 
 def gradient_ascent(a, b, sigma, l, alpha, K_y):
@@ -73,7 +73,7 @@ def bayesian_opt(X_train, X_test, y_train):
     :return: mean of GP posterior function, standard deviation, GP posterior function
     """
     s = 0.0001  # noise variance and zero mean for noise
-    n = 100 # number of test points
+    n = len(X_test) # number of test points
     N = len(X_train) # number of training points
     num_fun = 1
     #print X_test
@@ -115,6 +115,8 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
     s = 0.0005  # noise variance and zero mean for noise
     log_marg_likelihood_old = 0
     tolerance = 0.001
+    n = len(X_train)
+    N = len(X_test)
 
     for i in range(10000):
         # choose RBF kernel in this regression case
@@ -122,7 +124,7 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
         K_s = RBF_kernel(X_train, X_test, sigma, l)
         K_ss = RBF_kernel(X_test, X_test, sigma, l)
 
-        L = np.linalg.cholesky(K_train + s * np.eye(N))
+        L = np.linalg.cholesky(K_train + s * np.eye(n))
         m = np.linalg.solve(L, y_train)
         alpha = np.linalg.solve(L.T, m)
 
@@ -135,7 +137,8 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
         stand_devi = np.sqrt(var_test)
 
         # compute log marginal likelihood
-        log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n / 2 * np.log(2 * np.pi)
+        #log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n / 2 * np.log(2 * np.pi)
+        log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.log(np.diagonal(L)).sum(0) - n / 2.0 * np.log(2 * np.pi)
 
         # tune the hyperparameters for RBF kernel
         K_y_inv = np.dot(np.linalg.inv(L.T), np.linalg.inv(L))
@@ -153,13 +156,13 @@ def tune_hyperparms_first(X_train, X_test, y_train, num_fun, sigma, l):
     print 'optimal lenghscalar is: ' + `l[0]`
     print 'maximum log marginal likelihood is: ' + `optimal_likelihood`
     # sample from test points, in other words, make prediction
-    L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(n) - np.dot(v.T, v))
-    f_post_fun = mu_post.reshape(-1, 1) + np.dot(L_, np.random.normal(size=(n, num_fun)))
+    L_ = np.linalg.cholesky(K_ss + 1e-6 * np.eye(N) - np.dot(v.T, v))
+    f_post_fun = mu_post.reshape(-1, 1) + np.dot(L_, np.random.normal(size=(N, num_fun)))
     plt.axis([-5, 5, -3, 3])
     return mu_post, stand_devi, f_post_fun, optimal_likelihood
 
 
-def PI(params, means, stand_devi, parms_done, y):
+def PI(params, means, stand_devi, parms_done, y, n_iterations, k):
     """
     Probability of Improvement acquisition function
     :param params: test data
@@ -193,10 +196,16 @@ def PI(params, means, stand_devi, parms_done, y):
         condition = next_point in parms_done.tolist()
         if len(next_point) == 1 and condition:
             return True
+
+    if k == n_iterations-1:
+        plt.subplot(2, 1, 2)
+        plt.plot(params, cumu_gaussian)
+        #plt.axis([1,5,-0.5,1.5])
+    #plt.show()
     return next_point
 
 
-def UCB(parms_done, params, means, stand_devi):
+def UCB(parms_done, params, means, stand_devi, n_iterations, k):
     """
     Upper Confidence Bound acquisition function
     :param params: test data
@@ -206,7 +215,7 @@ def UCB(parms_done, params, means, stand_devi):
     :return: next point that need to pick up
     """
     num_parms = len(parms_done)
-    kappa = 7
+    kappa = 0.001
 
     objective = means + kappa * stand_devi
     indices = np.where(objective == np.max(objective))[0]
@@ -215,10 +224,15 @@ def UCB(parms_done, params, means, stand_devi):
     # if the next selected point is as same as the last one, then stop it
     if parms_done[num_parms - 1] == next_point:
         return True
+
+    if k == n_iterations-1:
+        plt.subplot(2, 1, 2)
+        plt.plot(params, objective)
+        #plt.axis([1,5,-0.5,1.5])
     return next_point
 
 
-def TS(parms_done, params, y):
+def TS(parms_done, params, y, n_iterations, k):
     """
     Thompson Sampling acquisition function
     :param parms_done: training data
@@ -231,10 +245,13 @@ def TS(parms_done, params, y):
     max_post_fun = np.max(f_post_fun)
     max_index = np.where(f_post_fun == max_post_fun)
     next_point = params[max_index]
+    if k == n_iterations-1:
+        plt.subplot(2, 1, 2)
+        plt.plot(params, f_post_fun)
     return next_point
 
 
-def EI(params, means, stand_devi, parms_done, y):
+def EI(params, means, stand_devi, parms_done, y, n_iterations, k):
     """
     Expected Improvement acquisition function
     :param params: test data
@@ -252,9 +269,12 @@ def EI(params, means, stand_devi, parms_done, y):
     EI_vector = (means - f_max) * norm.cdf(z) + stand_devi * norm.pdf(z)
     max_index = np.where(EI_vector == np.max(EI_vector))
     next_point = params[max_index]
+    if k == n_iterations-1:
+        plt.subplot(2, 1, 2)
+        plt.plot(params, EI_vector)
     return next_point
 
-def acquisition_fun(params, means, stand_devi, parms_done, y):
+def acquisition_fun(params, means, stand_devi, parms_done, y, n_iterations, k):
     """
     different acquisition functions
     :param params: test data
@@ -264,11 +284,11 @@ def acquisition_fun(params, means, stand_devi, parms_done, y):
     :param y: training targets
     :return: next point that need to pick up
     """
-    #next_point = PI(params, means, stand_devi, parms_done, y)
-    #next_point = UCB(parms_done, params, means, stand_devi)
-    #next_point = TS(parms_done, params, y)
-    next_point = EI(params, means, stand_devi, parms_done, y)
-    return next_point
+    next_point_PI = PI(params, means, stand_devi, parms_done, y, n_iterations, k)
+    next_point_UCB = UCB(parms_done, params, means, stand_devi, n_iterations, k)
+    next_point_TS = TS(parms_done, params, y, n_iterations, k)
+    next_point_EI = EI(params, means, stand_devi, parms_done, y, n_iterations, k)
+    return next_point_PI#, next_point_UCB, next_point_TS, next_point_EI
 
 
 def compute_mar_likelihood(X_train, X_test, y_train, sigma, l):
@@ -302,6 +322,7 @@ def compute_mar_likelihood(X_train, X_test, y_train, sigma, l):
 
     # compute log marginal likelihood
     log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.log(np.diagonal(L)).sum(0) - n / 2.0 * np.log(2 * np.pi)
+    #log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n / 2 * np.log(2 * np.pi)
     return log_marg_likelihood
 
 
@@ -350,8 +371,10 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
     :return: maximal log marginal likelihood
     """
     n = 100 # number of test points
+    #next_point = np.zeros(4)
+    n_iterations = 3
 
-    for k in range(15):
+    for k in range(n_iterations):
         # randomly generate test hyperparms except for hyperparms that have already choosed
         l_test = random_gen_test_parms(n, l)
         log_marg_likelihood = np.zeros(len(l))
@@ -360,7 +383,8 @@ def tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l):
         # Bayesian optimization for hyperparameters
         mu_post, stand_devi, f_post_fun = bayesian_opt(l.reshape(-1,1), l_test, log_marg_likelihood)
         # determine the next training point using acquisition function
-        next_point = acquisition_fun(l_test, mu_post, stand_devi, l, log_marg_likelihood)
+        next_point = acquisition_fun(l_test, mu_post, stand_devi, l, log_marg_likelihood, n_iterations, k)
+        #print next_point
         # if get early stop criterion then stop and output optimal result
         if next_point is True:
             max_index = np.where(log_marg_likelihood == np.max(log_marg_likelihood))[0]
@@ -415,7 +439,7 @@ def tune_hyperparms_BO(X_train, X_test, y_train, num_fun):
     """
     sigma = 1 # fix the output variance of RBF kernel
     # random pick up two initial hyperparm
-    l = np.random.uniform(0,5,2) # np.array([0.5, 3.5])
+    l = np.random.uniform(0.02,5,2) # np.array([0.5, 3.5])
     # tune hyperparameters of RBF kernel in regression using Bayesian optimization
     optimal_likelihood = tune_hyperparms_second(X_train, X_test, y_train, num_fun, sigma, l)
     return optimal_likelihood
@@ -440,9 +464,10 @@ if __name__ == "__main__":
     print "------ gradient ascent------"
     optimal_likelihood_GA = tune_hyperparms_gradient(X_train, X_test, y_train, num_fun)
 
+
     # the difference between result of Bayesian optimization and gradient ascent
     error = np.abs(optimal_likelihood_BO - optimal_likelihood_GA) / \
-            np.abs(max(optimal_likelihood_BO, optimal_likelihood_GA))
+            max(np.abs(optimal_likelihood_BO), np.abs(optimal_likelihood_GA))
     error_rate = error*100
     print ""
     print "------ error rate ------"
