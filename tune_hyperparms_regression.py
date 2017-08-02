@@ -199,9 +199,7 @@ def PI(params, means, stand_devi, parms_done, y, n_iterations, k):
 
     if k == n_iterations-1:
         plt.subplot(2, 1, 2)
-        plt.plot(params, cumu_gaussian)
-        #plt.axis([1,5,-0.5,1.5])
-    #plt.show()
+        plt.plot(params, cumu_gaussian, label='PI')
     return next_point
 
 
@@ -227,8 +225,7 @@ def UCB(parms_done, params, means, stand_devi, n_iterations, k):
 
     if k == n_iterations-1:
         plt.subplot(2, 1, 2)
-        plt.plot(params, objective)
-        #plt.axis([1,5,-0.5,1.5])
+        plt.plot(params, objective, label='UCB')
     return next_point
 
 
@@ -247,7 +244,7 @@ def TS(parms_done, params, y, n_iterations, k):
     next_point = params[max_index]
     if k == n_iterations-1:
         plt.subplot(2, 1, 2)
-        plt.plot(params, f_post_fun)
+        plt.plot(params, f_post_fun,label='TS')
     return next_point
 
 
@@ -271,7 +268,8 @@ def EI(params, means, stand_devi, parms_done, y, n_iterations, k):
     next_point = params[max_index]
     if k == n_iterations-1:
         plt.subplot(2, 1, 2)
-        plt.plot(params, EI_vector)
+        plt.plot(params, EI_vector, label='EI')
+        plt.legend(loc=3)
     return next_point
 
 def acquisition_fun(params, means, stand_devi, parms_done, y, n_iterations, k):
@@ -306,23 +304,12 @@ def compute_mar_likelihood(X_train, X_test, y_train, sigma, l):
 
     # choose RBF kernel in this regression case
     K_train = RBF_kernel(X_train, X_train, sigma, l)
-    K_s = RBF_kernel(X_train, X_test, sigma, l)
-    K_ss = RBF_kernel(X_test, X_test, sigma, l)
     L = np.linalg.cholesky(K_train + s * np.eye(n))
     m = np.linalg.solve(L, y_train)
     alpha = np.linalg.solve(L.T, m)
 
-    # compute mean of test points for posterior
-    mu_post = np.dot(K_s.T, alpha)
-    v = np.linalg.solve(L, K_s)
-
-    # compute variance for test points
-    var_test = np.diag(K_ss) - np.sum(v ** 2, axis=0)
-    stand_devi = np.sqrt(var_test)
-
     # compute log marginal likelihood
     log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.log(np.diagonal(L)).sum(0) - n / 2.0 * np.log(2 * np.pi)
-    #log_marg_likelihood = -.5 * np.dot(y_train.T, alpha) - np.diagonal(L).sum(0) - n / 2 * np.log(2 * np.pi)
     return log_marg_likelihood
 
 
