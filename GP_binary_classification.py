@@ -95,8 +95,8 @@ def model_training(K, y_train, f_prior, num_funs):
     num_train = y_train.size
     W = np.zeros((num_train, num_train))
     f = np.zeros((num_train, num_funs))  # initialize function####
-
     tolerance = 0.0001
+    y_axis = []
 
     print "training model!"
     # newton method
@@ -111,6 +111,7 @@ def model_training(K, y_train, f_prior, num_funs):
         f_new = np.dot(K, a)
 
         error = np.sqrt(np.sum((f_new - f)**2))
+        y_axis.append(error)
         f = f_new
         print f.shape
         print `i+1` + "th iteration, error:" + `error`
@@ -119,7 +120,16 @@ def model_training(K, y_train, f_prior, num_funs):
             print "The error is " + `error`
             print "training end!"
             break
-
+    '''
+    x_axis = np.arange(len(y_axis))
+    plt.clf()
+    plt.plot(x_axis.reshape(-1,1), y_axis)
+    plt.axis([0, len(y_axis), -0.5, 12])
+    plt.xlabel("iterations")
+    plt.ylabel("error")
+    plt.title("The error decrease for binary classification")
+    plt.show()
+    '''
     return W, L_inv, first_deri
 
 
