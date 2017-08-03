@@ -140,6 +140,7 @@ def model_training2(K, y, C, n):
     s = 3
     # initialization
     f = np.zeros((C * n,))  # initialize f=0(unbiased) which is an constant=0 function and means no GP prior in this case
+    y_axis = []
 
     # Newton iteration
     for j in range(10000):
@@ -156,6 +157,7 @@ def model_training2(K, y, C, n):
         sum = np.dot((1-step_size)*np.dot(L_inv.T, L_inv)+W, f) + y + pi_vector
         f_new = np.dot(L_inv_sec_deri, sum)
         error = np.sqrt(np.sum((f_new - f) ** 2))
+        y_axis.append(error)
         f = f_new
         print `j + 1` + "th iteration, error:" + `error`
         if error <= tolerance:
@@ -163,6 +165,14 @@ def model_training2(K, y, C, n):
             print "The error is " + `error`
             print "training end!"
             break
+    x_axis = np.arange(len(y_axis))
+    plt.clf()
+    plt.plot(x_axis.reshape(-1, 1), y_axis)
+    plt.axis([0, len(y_axis), -0.5, 7])
+    plt.xlabel("iterations")
+    plt.ylabel("error")
+    plt.title("The error decrease for multi-classification")
+    plt.show()
     return pi_vector
 
 
@@ -179,7 +189,8 @@ def prediction(x_star, y_star_true, X_train, C, y, pi_vector, kernel_parameter):
     :return: true or false
     """
     n = len(X_train)
-    k_star = RBF_kernel(X_train, x_star, kernel_parameter)
+    l = 1
+    k_star = RBF_kernel(X_train, x_star, kernel_parameter, l)
     f_star_mean = np.zeros((C,))
     for c in range(C):
         f_star_mean[c] = np.dot(k_star.T, y[c*n:(c+1)*n] - pi_vector[c*n:(c+1)*n])
@@ -216,10 +227,11 @@ if __name__ == "__main__":
     # hyper-parameters
     num_funs = num_classes # num of GP prior functions = num of categories
     kernel_parameter = 1
+    l = 1
 
     # compute kernel matrix K
     for c in range(num_classes):
-        K_sub = RBF_kernel(X_train, X_train, kernel_parameter)
+        K_sub = RBF_kernel(X_train, X_train, kernel_parameter, l)
         if c == 0:
             K = K_sub
         else:
