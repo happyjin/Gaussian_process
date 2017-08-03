@@ -135,10 +135,11 @@ def prediction(x_star, y_star_true, X_train, L_inv, W, first_deri, kernel_parame
     :param kernel_parameter: specify kernel parameter
     :return: prediction label
     """
-    k_star = RBF_kernel(X_train, x_star, kernel_parameter)
+    l = 1
+    k_star = RBF_kernel(X_train, x_star, kernel_parameter, l)
     f_star_mean = np.dot(k_star.T, first_deri)
     v = np.dot(L_inv, np.dot(np.sqrt(W), k_star))
-    k_ss = RBF_kernel(x_star, x_star, kernel_parameter)
+    k_ss = RBF_kernel(x_star, x_star, kernel_parameter, l)
     var_f_star = k_ss - np.dot(v.T, v)
     return label_function(f_star_mean) == y_star_true
 
@@ -165,7 +166,7 @@ if __name__ == "__main__":
     plt.title('data points')
 
     # compute covariance matrix K under RBF_kernel.
-    K_train = RBF_kernel(X_train, X_train, kernel_parameter)
+    K_train = RBF_kernel(X_train, X_train, kernel_parameter, l=1)
 
     # sampling points for GP prior function
     x1_min = np.min(X[:,0])
@@ -179,7 +180,7 @@ if __name__ == "__main__":
     # sampling GP prior sampling GP prior f for likelihood
     mu_prior = np.zeros((num_sampling, 1))
     num_sampling = X_sampling.shape[0]
-    f_prior = f_prior(X_sampling, mu_prior, kernel_parameter, num_sampling, num_funs)
+    f_prior = f_prior(X_sampling, mu_prior, 'rbf', num_sampling, num_funs)
     print 'shape of prior function:' + `f_prior.shape`
     plt.subplot(2,3,2)
     #plt.clf()
